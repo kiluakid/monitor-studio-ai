@@ -84,19 +84,18 @@ export function useStore() {
 
   const addPurchaseRequests = (requests: PurchaseRequest[]) => {
     setState((prev) => {
-      // Avoid exact ID duplicates, or merge
-      const existingIds = new Set(prev.purchaseRequests.map(r => r.id));
-      const newRequests = requests.filter(r => !existingIds.has(r.id));
-      return { ...prev, purchaseRequests: [...prev.purchaseRequests, ...newRequests] };
+      const existingMap = new Map(prev.purchaseRequests.map(r => [r.id, r]));
+      requests.forEach(r => existingMap.set(r.id, r));
+      return { ...prev, purchaseRequests: Array.from(existingMap.values()) };
     });
     setIsSaved(false);
   };
 
   const addPurchaseOrders = (orders: PurchaseOrder[]) => {
     setState((prev) => {
-      const existingIds = new Set(prev.purchaseOrders.map(o => o.id));
-      const newOrders = orders.filter(o => !existingIds.has(o.id));
-      return { ...prev, purchaseOrders: [...prev.purchaseOrders, ...newOrders] };
+      const existingMap = new Map(prev.purchaseOrders.map(o => [o.id, o]));
+      orders.forEach(o => existingMap.set(o.id, o));
+      return { ...prev, purchaseOrders: Array.from(existingMap.values()) };
     });
     setIsSaved(false);
   };

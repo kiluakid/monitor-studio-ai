@@ -55,7 +55,14 @@ export function DataTable({ type, data }: DataTableProps) {
     if (data.length > 0 && data[0]._raw) {
       const keys = new Set<string>();
       data.slice(0, 50).forEach(item => {
-        if (item._raw) Object.keys(item._raw).forEach(k => keys.add(k));
+        if (item._raw) {
+          Object.keys(item._raw).forEach(k => {
+             const keyLower = k.trim().toLowerCase();
+             if (!keyLower.startsWith('__empty') && keyLower !== 'listagem do browse') {
+                keys.add(k);
+             }
+          });
+        }
       });
       return Array.from(keys);
     }
