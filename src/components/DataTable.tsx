@@ -10,9 +10,20 @@ interface DataTableProps {
 
 export function DataTable({ type, data }: DataTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterFilial, setFilterFilial] = useState('All');
   const [filterCategory, setFilterCategory] = useState('All');
   const [filterStatus, setFilterStatus] = useState('All');
   const [sortBy, setSortBy] = useState<'date' | 'category' | 'filial'>('date');
+
+  // Extract unique filiais
+  const filiais = useMemo(() => {
+    const fSet = new Set<string>();
+    data.forEach(item => {
+       const key = Object.keys(item._raw || {}).find(k => k.toLowerCase() === 'filial');
+       if (key && item._raw && item._raw[key]) fSet.add(String(item._raw[key]));
+    });
+    return Array.from(fSet).sort();
+  }, [data]);
 
   // Extract unique categories
   const categories = useMemo(() => Array.from(new Set(data.map(item => item.category))), [data]);
@@ -34,8 +45,12 @@ export function DataTable({ type, data }: DataTableProps) {
       const matchesSearch = searchStr.includes(searchTerm.toLowerCase());
       const matchesCategory = filterCategory === 'All' || item.category === filterCategory;
       const matchesStatus = filterStatus === 'All' || item.status === filterStatus;
+      const matchesFilial = filterFilial === 'All' || (() => {
+         const key = Object.keys(item._raw || {}).find(k => k.toLowerCase() === 'filial');
+         return key && item._raw && String(item._raw[key]) === filterFilial;
+      })();
       
-      return matchesSearch && matchesCategory && matchesStatus;
+      return matchesSearch && matchesCategory && matchesStatus && matchesFilial;
     }).sort((a, b) => {
       if (sortBy === 'date') return new Date(b.date).getTime() - new Date(a.date).getTime();
       if (sortBy === 'category') return a.category.localeCompare(b.category);
@@ -46,7 +61,7 @@ export function DataTable({ type, data }: DataTableProps) {
       }
       return 0;
     });
-  }, [data, searchTerm, filterCategory, filterStatus, sortBy, type]);
+  }, [data, searchTerm, filterFilial, filterCategory, filterStatus, sortBy, type]);
 
   const dynamicColumns = useMemo(() => {
     if (data.length > 0 && data[0]._raw) {
@@ -88,6 +103,16 @@ export function DataTable({ type, data }: DataTableProps) {
                <Filter className="w-4 h-4" />
                <span>Filtros:</span>
             </div>
+            <select
+              value={filterFilial}
+              onChange={(e) => setFilterFilial(e.target.value)}
+              className="px-3 py-1.5 bg-white border border-slate-300 rounded-md outline-none focus:border-primary-500 max-w-[200px] truncate"
+              title={filterFilial}
+            >
+              <option value="All">Todas Filiais</option>
+              {filiais.map((f, i) => <option key={i} value={f}>{f}</option>)}
+            </select>
+
             <select
               value={filterCategory}
               onChange={(e) => setFilterCategory(e.target.value)}
