@@ -26,9 +26,13 @@ export function DataTable({ type, data }: DataTableProps) {
   const filteredData = useMemo(() => {
     return data.filter(item => {
       // Search
-      const searchStr = type === 'sc' 
+      let searchStr = type === 'sc' 
         ? `${(item as PurchaseRequest).id} ${(item as PurchaseRequest).product} ${item.category}`.toLowerCase()
         : `${(item as PurchaseOrder).id} ${(item as PurchaseOrder).supplier} ${item.category}`.toLowerCase();
+      
+      if (item._raw) {
+         searchStr += ' ' + Object.values(item._raw).map(val => String(val).toLowerCase()).join(' ');
+      }
       
       const matchesSearch = searchStr.includes(searchTerm.toLowerCase());
       const matchesCategory = filterCategory === 'All' || item.category === filterCategory;
