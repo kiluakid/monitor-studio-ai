@@ -48,7 +48,37 @@ export function ImportData({ onImportSC, onImportPC }: ImportDataProps) {
       const workbook = xlsx.read(data, { type: 'array' });
       const firstSheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[firstSheetName];
-      const json = xlsx.utils.sheet_to_json<any>(worksheet);
+      
+      // Obter os dados como array bidimensional para encontrar o cabeçalho real
+      const rawData = xlsx.utils.sheet_to_json<any>(worksheet, { header: 1 });
+      
+      // Procurar o índice da linha de cabeçalho
+      let headerRowIndex = 0;
+      for (let i = 0; i < Math.min(rawData.length, 20); i++) {
+        const row = rawData[i];
+        if (row && Array.isArray(row)) {
+          const rowText = row.join(' ').toLowerCase();
+          if (rowText.includes('filial') || rowText.includes('numero da sc') || rowText.includes('solicitacao') || rowText.includes('produto') || rowText.includes('fornecedor')) {
+            headerRowIndex = i;
+            break;
+          }
+        }
+      }
+
+      const headers = rawData[headerRowIndex] || [];
+      
+      // Mapear os dados usando o cabeçalho correto
+      const json = rawData.slice(headerRowIndex + 1).map(row => {
+        const obj: any = {};
+        if (Array.isArray(row)) {
+          headers.forEach((header: any, index: number) => {
+            if (header && typeof header === 'string') {
+              obj[header.trim()] = row[index];
+            }
+          });
+        }
+        return obj;
+      }).filter(row => Object.keys(row).length > 0);
 
       if (!json || json.length === 0) {
         throw new Error('Planilha vazia ou formato inválido.');
@@ -76,10 +106,10 @@ export function ImportData({ onImportSC, onImportPC }: ImportDataProps) {
         setImportStatus({ type: 'pc', count: mappedOrders.length });
       } else {
         const mappedReqs: PurchaseRequest[] = json.map((row: any) => ({
-          id: String(row['Num. SC'] || row['Solicitacao'] || row['ID'] || Math.random().toString(36).substring(7)),
-          date: row['Emissao'] || row['Data'] || new Date().toISOString(),
+          id: String(row['Numero da SC'] || row['Num. SC'] || row['Solicitacao'] || row['ID'] || Math.random().toString(36).substring(7)),
+          date: row['DT Emissao'] || row['Emissao'] || row['Data'] || new Date().toISOString(),
           product: row['Produto'] || row['Descricao'] || 'Produto não especificado',
-          category: row['Categoria'] || row['Grupo'] || 'Geral',
+          category: row['Filial'] || row['Categoria'] || row['Grupo'] || 'Geral',
           quantity: parseFloat(row['Quantidade'] || row['Qtd'] || '0') || 0,
           urgency: (row['Urgencia'] || 'Normal') as UrgencyLevel,
           status: (row['Status'] || 'Pendente') as SCStatus,
