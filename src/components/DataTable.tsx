@@ -13,9 +13,8 @@ interface DataTableProps {
 export function DataTable({ type, data }: DataTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('All');
-  const [filterUrgency, setFilterUrgency] = useState('All'); // Only applies to SC
   const [filterStatus, setFilterStatus] = useState('All');
-  const [sortBy, setSortBy] = useState<'date' | 'urgency' | 'category' | 'filial'>('date');
+  const [sortBy, setSortBy] = useState<'date' | 'category' | 'filial'>('date');
 
   // Extract unique categories
   const categories = useMemo(() => Array.from(new Set(data.map(item => item.category))), [data]);
@@ -38,12 +37,7 @@ export function DataTable({ type, data }: DataTableProps) {
       const matchesCategory = filterCategory === 'All' || item.category === filterCategory;
       const matchesStatus = filterStatus === 'All' || item.status === filterStatus;
       
-      let matchesUrgency = true;
-      if (type === 'sc' && filterUrgency !== 'All') {
-         matchesUrgency = (item as PurchaseRequest).urgency === filterUrgency;
-      }
-
-      return matchesSearch && matchesCategory && matchesStatus && matchesUrgency;
+      return matchesSearch && matchesCategory && matchesStatus;
     }).sort((a, b) => {
       if (sortBy === 'date') return new Date(b.date).getTime() - new Date(a.date).getTime();
       if (sortBy === 'category') return a.category.localeCompare(b.category);
@@ -52,13 +46,9 @@ export function DataTable({ type, data }: DataTableProps) {
          const filialB = String(b._raw?.['Filial'] || b.category || '').toLowerCase();
          return filialA.localeCompare(filialB);
       }
-      if (sortBy === 'urgency' && type === 'sc') {
-         const levels = { 'Crítica': 4, 'Alta': 3, 'Normal': 2, 'Baixa': 1 };
-         return (levels[(b as PurchaseRequest).urgency as keyof typeof levels] || 0) - (levels[(a as PurchaseRequest).urgency as keyof typeof levels] || 0);
-      }
       return 0;
     });
-  }, [data, searchTerm, filterCategory, filterStatus, filterUrgency, sortBy, type]);
+  }, [data, searchTerm, filterCategory, filterStatus, sortBy, type]);
 
   const dynamicColumns = useMemo(() => {
     if (data.length > 0 && data[0]._raw) {
@@ -67,7 +57,7 @@ export function DataTable({ type, data }: DataTableProps) {
         if (item._raw) {
           Object.keys(item._raw).forEach(k => {
              const keyLower = k.trim().toLowerCase();
-             if (!keyLower.startsWith('__empty') && keyLower !== 'listagem do browse') {
+             if (!keyLower.includes('empty') && !keyLower.includes('listagem do browse')) {
                 keys.add(k);
              }
           });
@@ -202,20 +192,6 @@ export function DataTable({ type, data }: DataTableProps) {
               {statuses.map((s, i) => <option key={i} value={s}>{s}</option>)}
             </select>
 
-            {type === 'sc' && (
-               <select
-                 value={filterUrgency}
-                 onChange={(e) => setFilterUrgency(e.target.value)}
-                 className="px-3 py-1.5 bg-white border border-slate-300 rounded-md outline-none focus:border-primary-500"
-               >
-                 <option value="All">Todas Urgências</option>
-                 <option value="Baixa">Baixa</option>
-                 <option value="Normal">Normal</option>
-                 <option value="Alta">Alta</option>
-                 <option value="Crítica">Crítica</option>
-               </select>
-            )}
-
             <div className="h-6 w-px bg-slate-300 hidden md:block"></div>
             
              <select
@@ -226,7 +202,6 @@ export function DataTable({ type, data }: DataTableProps) {
                  <option value="date">Ordenar por Data</option>
                  <option value="filial">Ordenar por Filial</option>
                  <option value="category">Ordenar por Categoria</option>
-                 {type === 'sc' && <option value="urgency">Ordenar por Urgência</option>}
                </select>
          </div>
       </div>
@@ -240,33 +215,13 @@ export function DataTable({ type, data }: DataTableProps) {
                 dynamicColumns.map((col, idx) => (
                   <th key={idx} className="py-3 px-4 font-semibold whitespace-nowrap">{col}</th>
                 ))
-              ) : (
-                <>
-                  <th className="py-3 px-4 font-semibold whitespace-nowrap">ID</th>
-                  <th className="py-3 px-4 font-semibold whitespace-nowrap">Data</th>
-                  {type === 'sc' ? (
-                    <>
-                      <th className="py-3 px-4 font-semibold">Produto</th>
-                      <th className="py-3 px-4 font-semibold whitespace-nowrap">Categoria</th>
-                      <th className="py-3 px-4 font-semibold">Qtd</th>
-                      <th className="py-3 px-4 font-semibold whitespace-nowrap">Urgência</th>
-                    </>
-                  ) : (
-                    <>
-                      <th className="py-3 px-4 font-semibold">Fornecedor</th>
-                      <th className="py-3 px-4 font-semibold whitespace-nowrap">Num. SC</th>
-                      <th className="py-3 px-4 font-semibold whitespace-nowrap">Valor Total</th>
-                    </>
-                  )}
-                  <th className="py-3 px-4 font-semibold whitespace-nowrap">Status</th>
-                </>
-              )}
+              ) : null}
             </tr>
           </thead>
           <tbody className="align-top">
              {filteredData.length === 0 ? (
                 <tr>
-                   <td colSpan={dynamicColumns ? dynamicColumns.length : 8} className="py-8 text-center text-slate-500">
+                   <td colSpan={dynamicColumns ? dynamicColumns.length : 1} className="py-8 text-center text-slate-500">
                       Nenhum registro encontrado.
                    </td>
                 </tr>
@@ -296,45 +251,7 @@ export function DataTable({ type, data }: DataTableProps) {
                            </td>
                          );
                       })
-                    ) : (
-                      <>
-                        <td className="py-3 px-4 text-sm font-medium text-slate-800 whitespace-nowrap">{item.id}</td>
-                        <td className="py-3 px-4 text-sm text-slate-500 whitespace-nowrap">{formatDate(item.date)}</td>
-                        
-                        {type === 'sc' ? (
-                          <>
-                            <td className="py-3 px-4 text-sm text-slate-800">{(item as PurchaseRequest).product}</td>
-                            <td className="py-3 px-4 text-sm text-slate-500 whitespace-nowrap">{item.category}</td>
-                            <td className="py-3 px-4 text-sm text-slate-800">{(item as PurchaseRequest).quantity}</td>
-                            <td className="py-3 px-4 whitespace-nowrap">
-                               <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border
-                                  ${(item as PurchaseRequest).urgency === 'Crítica' ? 'bg-rose-50 text-rose-700 border-rose-200' :
-                                    (item as PurchaseRequest).urgency === 'Alta' ? 'bg-orange-50 text-orange-700 border-orange-200' :
-                                    (item as PurchaseRequest).urgency === 'Baixa' ? 'bg-slate-50 text-slate-700 border-slate-200' :
-                                    'bg-blue-50 text-blue-700 border-blue-200'
-                                  }
-                               `}>
-                                  {(item as PurchaseRequest).urgency}
-                               </span>
-                            </td>
-                          </>
-                        ) : (
-                          <>
-                            <td className="py-3 px-4 text-sm text-slate-800">{(item as PurchaseOrder).supplier}</td>
-                            <td className="py-3 px-4 text-sm text-slate-500 whitespace-nowrap">{(item as PurchaseOrder).sc_id}</td>
-                            <td className="py-3 px-4 text-sm font-medium text-slate-800 whitespace-nowrap">
-                              {formatCurrency((item as PurchaseOrder).totalValue)}
-                            </td>
-                          </>
-                        )}
-                        
-                        <td className="py-3 px-4 whitespace-nowrap">
-                           <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
-                              {item.status}
-                           </span>
-                        </td>
-                      </>
-                    )}
+                    ) : null}
                   </tr>
                 ))
              )}
