@@ -1,0 +1,6 @@
+{
+  "name": "Protheus Monitor - SC/PC",
+  "description": "Monitor de Solicitação de Compras (MATA110) e Pedido de Compra (MATA121) com dashboards, importação avançada, filtros, exportação em PDF e backup automático offline.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
