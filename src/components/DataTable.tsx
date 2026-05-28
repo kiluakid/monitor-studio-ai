@@ -51,6 +51,17 @@ export function DataTable({ type, data }: DataTableProps) {
     });
   }, [data, searchTerm, filterCategory, filterStatus, filterUrgency, sortBy, type]);
 
+  const dynamicColumns = useMemo(() => {
+    if (data.length > 0 && data[0]._raw) {
+      const keys = new Set<string>();
+      data.slice(0, 50).forEach(item => {
+        if (item._raw) Object.keys(item._raw).forEach(k => keys.add(k));
+      });
+      return Array.from(keys);
+    }
+    return null;
+  }, [data]);
+
   const exportPDF = () => {
     const doc = new jsPDF();
     
@@ -63,7 +74,17 @@ export function DataTable({ type, data }: DataTableProps) {
     doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 14, 28);
     doc.text(`Total de registros: ${filteredData.length}`, 14, 34);
 
-    if (type === 'sc') {
+    if (dynamicColumns) {
+      const rows = filteredData.map(item => dynamicColumns.map(col => String(item._raw?.[col] !== undefined ? item._raw[col] : '-')));
+      (doc as any).autoTable({
+        startY: 40,
+        head: [dynamicColumns],
+        body: rows,
+        theme: 'striped',
+        headStyles: { fillColor: type === 'sc' ? [59, 130, 246] : [16, 185, 129] },
+        styles: { fontSize: 8 }
+      });
+    } else if (type === 'sc') {
       const rows = (filteredData as PurchaseRequest[]).map(item => [
         item.id,
         formatDate(item.date),
@@ -186,70 +207,88 @@ export function DataTable({ type, data }: DataTableProps) {
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-100 border-b border-slate-200 text-slate-500 text-sm">
-              <th className="py-3 px-4 font-semibold whitespace-nowrap">ID</th>
-              <th className="py-3 px-4 font-semibold whitespace-nowrap">Data</th>
-              {type === 'sc' ? (
-                <>
-                  <th className="py-3 px-4 font-semibold">Produto</th>
-                  <th className="py-3 px-4 font-semibold whitespace-nowrap">Categoria</th>
-                  <th className="py-3 px-4 font-semibold">Qtd</th>
-                  <th className="py-3 px-4 font-semibold whitespace-nowrap">Urgência</th>
-                </>
+              {dynamicColumns ? (
+                dynamicColumns.map((col, idx) => (
+                  <th key={idx} className="py-3 px-4 font-semibold whitespace-nowrap">{col}</th>
+                ))
               ) : (
                 <>
-                  <th className="py-3 px-4 font-semibold">Fornecedor</th>
-                  <th className="py-3 px-4 font-semibold whitespace-nowrap">Num. SC</th>
-                  <th className="py-3 px-4 font-semibold whitespace-nowrap">Valor Total</th>
+                  <th className="py-3 px-4 font-semibold whitespace-nowrap">ID</th>
+                  <th className="py-3 px-4 font-semibold whitespace-nowrap">Data</th>
+                  {type === 'sc' ? (
+                    <>
+                      <th className="py-3 px-4 font-semibold">Produto</th>
+                      <th className="py-3 px-4 font-semibold whitespace-nowrap">Categoria</th>
+                      <th className="py-3 px-4 font-semibold">Qtd</th>
+                      <th className="py-3 px-4 font-semibold whitespace-nowrap">Urgência</th>
+                    </>
+                  ) : (
+                    <>
+                      <th className="py-3 px-4 font-semibold">Fornecedor</th>
+                      <th className="py-3 px-4 font-semibold whitespace-nowrap">Num. SC</th>
+                      <th className="py-3 px-4 font-semibold whitespace-nowrap">Valor Total</th>
+                    </>
+                  )}
+                  <th className="py-3 px-4 font-semibold whitespace-nowrap">Status</th>
                 </>
               )}
-              <th className="py-3 px-4 font-semibold whitespace-nowrap">Status</th>
             </tr>
           </thead>
           <tbody className="align-top">
              {filteredData.length === 0 ? (
                 <tr>
-                   <td colSpan={8} className="py-8 text-center text-slate-500">
+                   <td colSpan={dynamicColumns ? dynamicColumns.length : 8} className="py-8 text-center text-slate-500">
                       Nenhum registro encontrado.
                    </td>
                 </tr>
              ) : (
                 filteredData.map((item, index) => (
                   <tr key={index} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
-                    <td className="py-3 px-4 text-sm font-medium text-slate-800 whitespace-nowrap">{item.id}</td>
-                    <td className="py-3 px-4 text-sm text-slate-500 whitespace-nowrap">{formatDate(item.date)}</td>
-                    
-                    {type === 'sc' ? (
+                    {dynamicColumns ? (
+                      dynamicColumns.map((col, idx) => (
+                        <td key={idx} className="py-3 px-4 text-sm text-slate-800 whitespace-nowrap">
+                          {String(item._raw?.[col] !== undefined ? item._raw[col] : '-')}
+                        </td>
+                      ))
+                    ) : (
                       <>
-                        <td className="py-3 px-4 text-sm text-slate-800">{(item as PurchaseRequest).product}</td>
-                        <td className="py-3 px-4 text-sm text-slate-500 whitespace-nowrap">{item.category}</td>
-                        <td className="py-3 px-4 text-sm text-slate-800">{(item as PurchaseRequest).quantity}</td>
+                        <td className="py-3 px-4 text-sm font-medium text-slate-800 whitespace-nowrap">{item.id}</td>
+                        <td className="py-3 px-4 text-sm text-slate-500 whitespace-nowrap">{formatDate(item.date)}</td>
+                        
+                        {type === 'sc' ? (
+                          <>
+                            <td className="py-3 px-4 text-sm text-slate-800">{(item as PurchaseRequest).product}</td>
+                            <td className="py-3 px-4 text-sm text-slate-500 whitespace-nowrap">{item.category}</td>
+                            <td className="py-3 px-4 text-sm text-slate-800">{(item as PurchaseRequest).quantity}</td>
+                            <td className="py-3 px-4 whitespace-nowrap">
+                               <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border
+                                  ${(item as PurchaseRequest).urgency === 'Crítica' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                                    (item as PurchaseRequest).urgency === 'Alta' ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                                    (item as PurchaseRequest).urgency === 'Baixa' ? 'bg-slate-50 text-slate-700 border-slate-200' :
+                                    'bg-blue-50 text-blue-700 border-blue-200'
+                                  }
+                               `}>
+                                  {(item as PurchaseRequest).urgency}
+                               </span>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="py-3 px-4 text-sm text-slate-800">{(item as PurchaseOrder).supplier}</td>
+                            <td className="py-3 px-4 text-sm text-slate-500 whitespace-nowrap">{(item as PurchaseOrder).sc_id}</td>
+                            <td className="py-3 px-4 text-sm font-medium text-slate-800 whitespace-nowrap">
+                              {formatCurrency((item as PurchaseOrder).totalValue)}
+                            </td>
+                          </>
+                        )}
+                        
                         <td className="py-3 px-4 whitespace-nowrap">
-                           <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border
-                              ${(item as PurchaseRequest).urgency === 'Crítica' ? 'bg-rose-50 text-rose-700 border-rose-200' :
-                                (item as PurchaseRequest).urgency === 'Alta' ? 'bg-orange-50 text-orange-700 border-orange-200' :
-                                (item as PurchaseRequest).urgency === 'Baixa' ? 'bg-slate-50 text-slate-700 border-slate-200' :
-                                'bg-blue-50 text-blue-700 border-blue-200'
-                              }
-                           `}>
-                              {(item as PurchaseRequest).urgency}
+                           <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                              {item.status}
                            </span>
                         </td>
                       </>
-                    ) : (
-                      <>
-                        <td className="py-3 px-4 text-sm text-slate-800">{(item as PurchaseOrder).supplier}</td>
-                        <td className="py-3 px-4 text-sm text-slate-500 whitespace-nowrap">{(item as PurchaseOrder).sc_id}</td>
-                        <td className="py-3 px-4 text-sm font-medium text-slate-800 whitespace-nowrap">
-                          {formatCurrency((item as PurchaseOrder).totalValue)}
-                        </td>
-                      </>
                     )}
-                    
-                    <td className="py-3 px-4 whitespace-nowrap">
-                       <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
-                          {item.status}
-                       </span>
-                    </td>
                   </tr>
                 ))
              )}

@@ -12,6 +12,7 @@ export interface PurchaseRequest {
   status: SCStatus; // Status
   requester: string; // Solicitante
   observations?: string; // Obs
+  _raw?: Record<string, any>; // Dados originais da planilha
 }
 
 export interface PurchaseOrder {
@@ -23,6 +24,7 @@ export interface PurchaseOrder {
   totalValue: number; // Valor Total
   status: PCStatus;
   deliveryDate: string; // Previsão de Entrega
+  _raw?: Record<string, any>; // Dados originais da planilha
 }
 
 export interface AppState {
