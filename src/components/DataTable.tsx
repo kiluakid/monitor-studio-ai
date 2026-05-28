@@ -1,9 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
 import { PurchaseRequest, PurchaseOrder } from '../types';
 import { formatCurrency, formatDate } from '../lib/utils';
-import { Download, Search, Filter } from 'lucide-react';
+import { Search, Filter } from 'lucide-react';
 
 interface DataTableProps {
   type: 'sc' | 'pc';
@@ -68,83 +66,6 @@ export function DataTable({ type, data }: DataTableProps) {
     return null;
   }, [data]);
 
-  const exportPDF = () => {
-    const doc = new jsPDF();
-    
-    const title = type === 'sc' ? 'Relatório de Solicitações de Compra (MATA110)' : 'Relatório de Pedidos de Compra (MATA121)';
-    const filename = type === 'sc' ? 'relatorio_sc.pdf' : 'relatorio_pc.pdf';
-    
-    doc.setFontSize(16);
-    doc.text(title, 14, 20);
-    doc.setFontSize(10);
-    doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 14, 28);
-    doc.text(`Total de registros: ${filteredData.length}`, 14, 34);
-
-    if (dynamicColumns) {
-      const rows = filteredData.map(item => dynamicColumns.map(col => {
-         const value = item._raw?.[col];
-         if (value === undefined || value === null) return '-';
-         
-         const colLower = col.toLowerCase();
-         const isDateCol = colLower.includes('dt') || colLower.includes('data') || colLower.includes('emissão') || colLower.includes('emissao') || colLower.includes('entrega') || colLower.includes('previsao');
-         
-         if (isDateCol && typeof value === 'number' && value > 10000) {
-            const date = new Date(Math.round((value - 25569) * 86400 * 1000));
-            return date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
-         }
-         return String(value);
-      }));
-      (doc as any).autoTable({
-        startY: 40,
-        head: [dynamicColumns],
-        body: rows,
-        theme: 'striped',
-        headStyles: { fillColor: type === 'sc' ? [59, 130, 246] : [16, 185, 129] },
-        styles: { fontSize: 8 }
-      });
-    } else if (type === 'sc') {
-      const rows = (filteredData as PurchaseRequest[]).map(item => [
-        item.id,
-        formatDate(item.date),
-        item.product,
-        item.category,
-        item.quantity.toString(),
-        item.urgency,
-        item.status
-      ]);
-
-      (doc as any).autoTable({
-        startY: 40,
-        head: [['SC', 'Data', 'Produto', 'Categoria', 'Qtd', 'Urgência', 'Status']],
-        body: rows,
-        theme: 'striped',
-        headStyles: { fillColor: [59, 130, 246] }, // blue-500
-        styles: { fontSize: 8 }
-      });
-    } else {
-      const rows = (filteredData as PurchaseOrder[]).map(item => [
-        item.id,
-        item.sc_id || '-',
-        formatDate(item.date),
-        item.supplier,
-        item.category,
-        formatCurrency(item.totalValue),
-        item.status
-      ]);
-
-      (doc as any).autoTable({
-        startY: 40,
-        head: [['PC', 'Num. SC', 'Data', 'Fornecedor', 'Categoria', 'Valor Total', 'Status']],
-        body: rows,
-        theme: 'striped',
-        headStyles: { fillColor: [16, 185, 129] }, // emerald-500
-        styles: { fontSize: 8 }
-      });
-    }
-
-    doc.save(filename);
-  };
-
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full">
       {/* Header & Filters */}
@@ -160,13 +81,6 @@ export function DataTable({ type, data }: DataTableProps) {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <button
-            onClick={exportPDF}
-            className="flex items-center space-x-2 px-4 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-800"
-          >
-            <Download className="w-4 h-4" />
-            <span>Exportar PDF</span>
-          </button>
         </div>
 
          <div className="flex flex-wrap gap-4 items-center text-sm">
