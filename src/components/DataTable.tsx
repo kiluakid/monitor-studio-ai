@@ -86,7 +86,19 @@ export function DataTable({ type, data }: DataTableProps) {
     doc.text(`Total de registros: ${filteredData.length}`, 14, 34);
 
     if (dynamicColumns) {
-      const rows = filteredData.map(item => dynamicColumns.map(col => String(item._raw?.[col] !== undefined ? item._raw[col] : '-')));
+      const rows = filteredData.map(item => dynamicColumns.map(col => {
+         const value = item._raw?.[col];
+         if (value === undefined || value === null) return '-';
+         
+         const colLower = col.toLowerCase();
+         const isDateCol = colLower.includes('dt') || colLower.includes('data') || colLower.includes('emissão') || colLower.includes('emissao') || colLower.includes('entrega') || colLower.includes('previsao');
+         
+         if (isDateCol && typeof value === 'number' && value > 10000) {
+            const date = new Date(Math.round((value - 25569) * 86400 * 1000));
+            return date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+         }
+         return String(value);
+      }));
       (doc as any).autoTable({
         startY: 40,
         head: [dynamicColumns],
@@ -256,11 +268,28 @@ export function DataTable({ type, data }: DataTableProps) {
                 filteredData.map((item, index) => (
                   <tr key={index} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
                     {dynamicColumns ? (
-                      dynamicColumns.map((col, idx) => (
-                        <td key={idx} className="py-3 px-4 text-sm text-slate-800 whitespace-nowrap">
-                          {String(item._raw?.[col] !== undefined ? item._raw[col] : '-')}
-                        </td>
-                      ))
+                      dynamicColumns.map((col, idx) => {
+                         const value = item._raw?.[col];
+                         let displayValue = '-';
+                         
+                         if (value !== undefined && value !== null) {
+                            const colLower = col.toLowerCase();
+                            const isDateCol = colLower.includes('dt') || colLower.includes('data') || colLower.includes('emissão') || colLower.includes('emissao') || colLower.includes('entrega') || colLower.includes('previsao');
+                            
+                            if (isDateCol && typeof value === 'number' && value > 10000) {
+                               const date = new Date(Math.round((value - 25569) * 86400 * 1000));
+                               displayValue = date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+                            } else {
+                               displayValue = String(value);
+                            }
+                         }
+
+                         return (
+                           <td key={idx} className="py-3 px-4 text-sm text-slate-800 whitespace-nowrap">
+                             {displayValue}
+                           </td>
+                         );
+                      })
                     ) : (
                       <>
                         <td className="py-3 px-4 text-sm font-medium text-slate-800 whitespace-nowrap">{item.id}</td>
