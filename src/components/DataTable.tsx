@@ -12,7 +12,6 @@ export function DataTable({ type, data }: DataTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterFilial, setFilterFilial] = useState('All');
   const [filterCategory, setFilterCategory] = useState('All');
-  const [filterStatus, setFilterStatus] = useState('All');
   const [sortBy, setSortBy] = useState<'date' | 'category' | 'filial'>('date');
 
   // Extract unique filiais
@@ -27,9 +26,6 @@ export function DataTable({ type, data }: DataTableProps) {
 
   // Extract unique categories
   const categories = useMemo(() => Array.from(new Set(data.map(item => item.category))), [data]);
-  
-  // Extract unique statuses
-  const statuses = useMemo(() => Array.from(new Set(data.map(item => item.status))), [data]);
 
   const filteredData = useMemo(() => {
     return data.filter(item => {
@@ -44,13 +40,12 @@ export function DataTable({ type, data }: DataTableProps) {
       
       const matchesSearch = searchStr.includes(searchTerm.toLowerCase());
       const matchesCategory = filterCategory === 'All' || item.category === filterCategory;
-      const matchesStatus = filterStatus === 'All' || item.status === filterStatus;
       const matchesFilial = filterFilial === 'All' || (() => {
          const key = Object.keys(item._raw || {}).find(k => k.toLowerCase() === 'filial');
          return key && item._raw && String(item._raw[key]) === filterFilial;
       })();
       
-      return matchesSearch && matchesCategory && matchesStatus && matchesFilial;
+      return matchesSearch && matchesCategory && matchesFilial;
     }).sort((a, b) => {
       if (sortBy === 'date') return new Date(b.date).getTime() - new Date(a.date).getTime();
       if (sortBy === 'category') return a.category.localeCompare(b.category);
@@ -61,7 +56,7 @@ export function DataTable({ type, data }: DataTableProps) {
       }
       return 0;
     });
-  }, [data, searchTerm, filterFilial, filterCategory, filterStatus, sortBy, type]);
+  }, [data, searchTerm, filterFilial, filterCategory, sortBy, type]);
 
   const dynamicColumns = useMemo(() => {
     if (data.length > 0 && data[0]._raw) {
@@ -120,15 +115,6 @@ export function DataTable({ type, data }: DataTableProps) {
             >
               <option value="All">Todas Categorias</option>
               {categories.map((c, i) => <option key={i} value={c}>{c}</option>)}
-            </select>
-
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-3 py-1.5 bg-neutral-900 border border-neutral-800 text-neutral-300 rounded-md outline-none focus:border-indigo-500"
-            >
-              <option value="All">Todos Status</option>
-              {statuses.map((s, i) => <option key={i} value={s}>{s}</option>)}
             </select>
 
             <div className="h-6 w-px bg-neutral-800 hidden md:block"></div>
