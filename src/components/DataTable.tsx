@@ -15,7 +15,7 @@ export function DataTable({ type, data }: DataTableProps) {
   const [filterCategory, setFilterCategory] = useState('All');
   const [filterUrgency, setFilterUrgency] = useState('All'); // Only applies to SC
   const [filterStatus, setFilterStatus] = useState('All');
-  const [sortBy, setSortBy] = useState<'date' | 'urgency' | 'category'>('date');
+  const [sortBy, setSortBy] = useState<'date' | 'urgency' | 'category' | 'filial'>('date');
 
   // Extract unique categories
   const categories = useMemo(() => Array.from(new Set(data.map(item => item.category))), [data]);
@@ -47,6 +47,11 @@ export function DataTable({ type, data }: DataTableProps) {
     }).sort((a, b) => {
       if (sortBy === 'date') return new Date(b.date).getTime() - new Date(a.date).getTime();
       if (sortBy === 'category') return a.category.localeCompare(b.category);
+      if (sortBy === 'filial') {
+         const filialA = String(a._raw?.['Filial'] || a.category || '').toLowerCase();
+         const filialB = String(b._raw?.['Filial'] || b.category || '').toLowerCase();
+         return filialA.localeCompare(filialB);
+      }
       if (sortBy === 'urgency' && type === 'sc') {
          const levels = { 'Crítica': 4, 'Alta': 3, 'Normal': 2, 'Baixa': 1 };
          return (levels[(b as PurchaseRequest).urgency as keyof typeof levels] || 0) - (levels[(a as PurchaseRequest).urgency as keyof typeof levels] || 0);
@@ -219,6 +224,7 @@ export function DataTable({ type, data }: DataTableProps) {
                  className="px-3 py-1.5 bg-white border border-slate-300 rounded-md outline-none focus:border-primary-500 text-slate-600 font-medium"
                >
                  <option value="date">Ordenar por Data</option>
+                 <option value="filial">Ordenar por Filial</option>
                  <option value="category">Ordenar por Categoria</option>
                  {type === 'sc' && <option value="urgency">Ordenar por Urgência</option>}
                </select>
