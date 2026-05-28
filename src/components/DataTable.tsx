@@ -82,16 +82,16 @@ export function DataTable({ type, data }: DataTableProps) {
   }, [data]);
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full">
+    <div className="bg-neutral-900 rounded-xl border border-neutral-800 shadow-sm overflow-hidden flex flex-col h-full">
       {/* Header & Filters */}
-      <div className="p-4 border-b border-slate-200 bg-slate-50 space-y-4">
+      <div className="p-4 border-b border-neutral-800 bg-neutral-950 space-y-4">
         <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
           <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 w-5 h-5" />
             <input
               type="text"
               placeholder={`Pesquisar ${type === 'sc' ? 'solicitações...' : 'pedidos...'}`}
-              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-300 rounded-lg outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
+              className="w-full pl-10 pr-4 py-2 bg-neutral-900 border border-neutral-800 text-neutral-200 rounded-lg outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 placeholder-neutral-500"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -99,14 +99,14 @@ export function DataTable({ type, data }: DataTableProps) {
         </div>
 
          <div className="flex flex-wrap gap-4 items-center text-sm">
-            <div className="flex items-center space-x-2 text-slate-600 font-medium shrink-0">
+            <div className="flex items-center space-x-2 text-neutral-400 font-medium shrink-0">
                <Filter className="w-4 h-4" />
                <span>Filtros:</span>
             </div>
             <select
               value={filterFilial}
               onChange={(e) => setFilterFilial(e.target.value)}
-              className="px-3 py-1.5 bg-white border border-slate-300 rounded-md outline-none focus:border-primary-500 max-w-[200px] truncate"
+              className="px-3 py-1.5 bg-neutral-900 border border-neutral-800 text-neutral-300 rounded-md outline-none focus:border-indigo-500 max-w-[200px] truncate"
               title={filterFilial}
             >
               <option value="All">Todas Filiais</option>
@@ -116,7 +116,7 @@ export function DataTable({ type, data }: DataTableProps) {
             <select
               value={filterCategory}
               onChange={(e) => setFilterCategory(e.target.value)}
-              className="px-3 py-1.5 bg-white border border-slate-300 rounded-md outline-none focus:border-primary-500"
+              className="px-3 py-1.5 bg-neutral-900 border border-neutral-800 text-neutral-300 rounded-md outline-none focus:border-indigo-500"
             >
               <option value="All">Todas Categorias</option>
               {categories.map((c, i) => <option key={i} value={c}>{c}</option>)}
@@ -125,18 +125,18 @@ export function DataTable({ type, data }: DataTableProps) {
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-3 py-1.5 bg-white border border-slate-300 rounded-md outline-none focus:border-primary-500"
+              className="px-3 py-1.5 bg-neutral-900 border border-neutral-800 text-neutral-300 rounded-md outline-none focus:border-indigo-500"
             >
               <option value="All">Todos Status</option>
               {statuses.map((s, i) => <option key={i} value={s}>{s}</option>)}
             </select>
 
-            <div className="h-6 w-px bg-slate-300 hidden md:block"></div>
+            <div className="h-6 w-px bg-neutral-800 hidden md:block"></div>
             
              <select
                  value={sortBy}
                  onChange={(e) => setSortBy(e.target.value as any)}
-                 className="px-3 py-1.5 bg-white border border-slate-300 rounded-md outline-none focus:border-primary-500 text-slate-600 font-medium"
+                 className="px-3 py-1.5 bg-neutral-900 border border-neutral-800 text-neutral-300 rounded-md outline-none focus:border-indigo-500 font-medium"
                >
                  <option value="date">Ordenar por Data</option>
                  <option value="filial">Ordenar por Filial</option>
@@ -149,7 +149,7 @@ export function DataTable({ type, data }: DataTableProps) {
       <div className="flex-1 overflow-auto">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-slate-100 border-b border-slate-200 text-slate-500 text-sm">
+            <tr className="bg-neutral-800/50 border-b border-neutral-800 text-neutral-400 text-sm">
               {dynamicColumns ? (
                 dynamicColumns.map((col, idx) => (
                   <th key={idx} className="py-3 px-4 font-semibold whitespace-nowrap">{col}</th>
@@ -160,13 +160,13 @@ export function DataTable({ type, data }: DataTableProps) {
           <tbody className="align-top">
              {filteredData.length === 0 ? (
                 <tr>
-                   <td colSpan={dynamicColumns ? dynamicColumns.length : 1} className="py-8 text-center text-slate-500">
+                   <td colSpan={dynamicColumns ? dynamicColumns.length : 1} className="py-8 text-center text-neutral-500">
                       Nenhum registro encontrado.
                    </td>
                 </tr>
              ) : (
                 filteredData.map((item, index) => (
-                  <tr key={index} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
+                  <tr key={index} className="border-b border-neutral-800/50 hover:bg-neutral-800/30 transition-colors">
                     {dynamicColumns ? (
                       dynamicColumns.map((col, idx) => {
                          const value = item._raw?.[col];
@@ -185,7 +185,7 @@ export function DataTable({ type, data }: DataTableProps) {
                          }
 
                          return (
-                           <td key={idx} className="py-3 px-4 text-sm text-slate-800 whitespace-nowrap">
+                           <td key={idx} className="py-3 px-4 text-sm text-neutral-300 whitespace-nowrap">
                              {displayValue}
                            </td>
                          );
@@ -197,7 +197,7 @@ export function DataTable({ type, data }: DataTableProps) {
           </tbody>
         </table>
       </div>
-      <div className="p-4 border-t border-slate-200 bg-slate-50 text-xs text-slate-500 text-right">
+      <div className="p-4 border-t border-neutral-800 bg-neutral-950 text-xs text-neutral-500 text-right">
         Total Exibido: {filteredData.length}
       </div>
     </div>

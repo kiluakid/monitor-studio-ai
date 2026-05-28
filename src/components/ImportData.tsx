@@ -153,21 +153,21 @@ export function ImportData({ onImportSC, onImportPC }: ImportDataProps) {
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div className="text-center mb-8">
-        <h2 className="text-3xl font-bold text-slate-800 mb-2">Importar Dados do Protheus</h2>
-        <p className="text-slate-500">Selecione o tipo de arquivo que você deseja importar.</p>
+        <h2 className="text-3xl font-bold text-white mb-2">Importar Dados do Protheus</h2>
+        <p className="text-neutral-400">Selecione o tipo de arquivo que você deseja importar.</p>
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
         {/* Import SC */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-          <div className="p-6 border-b border-slate-100 bg-blue-50/50">
-            <h3 className="text-xl font-bold text-blue-900 mb-1">MATA110</h3>
-            <p className="text-blue-700/70 text-sm">Solicitações de Compras (SC)</p>
+        <div className="bg-neutral-900 rounded-2xl border border-neutral-800 shadow-sm overflow-hidden flex flex-col">
+          <div className="p-6 border-b border-neutral-800 bg-blue-900/20">
+            <h3 className="text-xl font-bold text-blue-400 mb-1">MATA110</h3>
+            <p className="text-blue-500/70 text-sm">Solicitações de Compras (SC)</p>
           </div>
           <div className="p-6 flex-grow flex flex-col">
             <div
               className={`flex-grow border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer flex flex-col items-center justify-center
-                ${dragActiveSC ? 'border-blue-500 bg-blue-50' : 'border-slate-300 hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'}`}
+                ${dragActiveSC ? 'border-blue-500 bg-blue-900/10' : 'border-neutral-700 hover:border-neutral-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-neutral-900'}`}
               onDragEnter={handleDragSC}
               onDragLeave={handleDragSC}
               onDragOver={handleDragSC}
@@ -188,13 +188,13 @@ export function ImportData({ onImportSC, onImportPC }: ImportDataProps) {
                 accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
                 onChange={handleChangeSC}
               />
-              <div className="mx-auto flex justify-center mb-4 text-slate-400">
+              <div className="mx-auto flex justify-center mb-4 text-neutral-500">
                 <FileSpreadsheet className="w-12 h-12" />
               </div>
-              <p className="text-base font-medium text-slate-700 mb-1">
+              <p className="text-base font-medium text-neutral-300 mb-1">
                 Clique ou arraste a planilha MATA110 aqui
               </p>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-neutral-500">
                 Formatos suportados: CSV, XLSX, XLS
               </p>
             </div>
@@ -202,15 +202,15 @@ export function ImportData({ onImportSC, onImportPC }: ImportDataProps) {
         </div>
 
         {/* Import PC */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-          <div className="p-6 border-b border-slate-100 bg-emerald-50/50">
-            <h3 className="text-xl font-bold text-emerald-900 mb-1">MATA121</h3>
-            <p className="text-emerald-700/70 text-sm">Pedidos de Compras (PC)</p>
+        <div className="bg-neutral-900 rounded-2xl border border-neutral-800 shadow-sm overflow-hidden flex flex-col">
+          <div className="p-6 border-b border-neutral-800 bg-emerald-900/20">
+            <h3 className="text-xl font-bold text-emerald-400 mb-1">MATA121</h3>
+            <p className="text-emerald-500/70 text-sm">Pedidos de Compras (PC)</p>
           </div>
           <div className="p-6 flex-grow flex flex-col">
             <div
               className={`flex-grow border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer flex flex-col items-center justify-center
-                ${dragActivePC ? 'border-emerald-500 bg-emerald-50' : 'border-slate-300 hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2'}`}
+                ${dragActivePC ? 'border-emerald-500 bg-emerald-900/10' : 'border-neutral-700 hover:border-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-neutral-900'}`}
               onDragEnter={handleDragPC}
               onDragLeave={handleDragPC}
               onDragOver={handleDragPC}
@@ -231,13 +231,13 @@ export function ImportData({ onImportSC, onImportPC }: ImportDataProps) {
                 accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
                 onChange={handleChangePC}
               />
-              <div className="mx-auto flex justify-center mb-4 text-slate-400">
+              <div className="mx-auto flex justify-center mb-4 text-neutral-500">
                 <Upload className="w-12 h-12" />
               </div>
-              <p className="text-base font-medium text-slate-700 mb-1">
+              <p className="text-base font-medium text-neutral-300 mb-1">
                 Clique ou arraste a planilha MATA121 aqui
               </p>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-neutral-500">
                 Formatos suportados: CSV, XLSX, XLS
               </p>
             </div>
@@ -246,7 +246,7 @@ export function ImportData({ onImportSC, onImportPC }: ImportDataProps) {
       </div>
 
       {error && (
-        <div className="mt-6 p-4 bg-rose-50 rounded-lg flex items-start space-x-3 text-rose-700 border border-rose-100">
+        <div className="mt-6 p-4 bg-rose-950/50 rounded-lg flex items-start space-x-3 text-rose-400 border border-rose-900/50">
           <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
           <div>
             <p className="font-medium">Erro na importação</p>
@@ -256,7 +256,7 @@ export function ImportData({ onImportSC, onImportPC }: ImportDataProps) {
       )}
 
       {importStatus && !error && (
-        <div className="mt-6 p-4 bg-emerald-50 rounded-lg flex items-center justify-between text-emerald-700 border border-emerald-100">
+        <div className="mt-6 p-4 bg-emerald-950/50 rounded-lg flex items-center justify-between text-emerald-400 border border-emerald-900/50">
           <div className="flex items-center space-x-3">
              <CheckCircle2 className="w-5 h-5 shrink-0" />
              <p className="font-medium">
@@ -267,7 +267,7 @@ export function ImportData({ onImportSC, onImportPC }: ImportDataProps) {
           </div>
           <button 
             onClick={() => setImportStatus(null)}
-            className="text-sm font-medium hover:text-emerald-800 focus:outline-none focus:underline"
+            className="text-sm font-medium hover:text-emerald-300 focus:outline-none focus:underline"
           >
             Limpar
           </button>
