@@ -73,14 +73,15 @@ export function useStore() {
     return String(id).replace(/[\/#\.\[\]]/g, '_').substring(0, 128);
   };
 
-  const removeUndefined = (obj: any): any => {
+  const sanitizeForFirebase = (obj: any): any => {
     if (Array.isArray(obj)) {
-      return obj.map(removeUndefined);
+      return obj.map(sanitizeForFirebase);
     } else if (obj !== null && typeof obj === 'object') {
       const newObj: any = {};
       for (const [key, value] of Object.entries(obj)) {
         if (value !== undefined) {
-          newObj[key] = removeUndefined(value);
+          const cleanKey = String(key).replace(/[\.\/#\[\]~*]/g, '_');
+          newObj[cleanKey] = sanitizeForFirebase(value);
         }
       }
       return newObj;
@@ -94,7 +95,7 @@ export function useStore() {
       const chunk = items.slice(i, i + CHUNK_SIZE);
       const batch = writeBatch(db);
       chunk.forEach(item => {
-        batch.set(doc(db, docCollection, sanitizeId(item.id)), removeUndefined(item));
+        batch.set(doc(db, docCollection, sanitizeId(item.id)), sanitizeForFirebase(item));
       });
       await batch.commit();
     }
@@ -141,6 +142,7 @@ export function useStore() {
       setIsSaved(true);
     } catch (e) {
       console.error('Error setting requests', e);
+      throw e;
     }
   };
 
@@ -151,6 +153,7 @@ export function useStore() {
       setIsSaved(true);
     } catch (e) {
       console.error('Error setting orders', e);
+      throw e;
     }
   };
 
@@ -161,6 +164,7 @@ export function useStore() {
       setIsSaved(true);
     } catch (e) {
       console.error('Error adding requests', e);
+      throw e;
     }
   };
 
@@ -171,6 +175,7 @@ export function useStore() {
       setIsSaved(true);
     } catch (e) {
       console.error('Error adding orders', e);
+      throw e;
     }
   };
 

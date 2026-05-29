@@ -166,7 +166,7 @@ export function ImportData({ onImportSC, onImportPC }: ImportDataProps) {
           deliveryDate: row['Entrega'] || row['Previsao'] || row['Data'] || '',
           _raw: row,
         }));
-        onImportPC(mappedOrders);
+        await onImportPC(mappedOrders);
         setImportStatus({ type: 'pc', count: mappedOrders.length });
       } else {
         const mappedReqs: PurchaseRequest[] = json.map((row: any) => ({
@@ -181,7 +181,7 @@ export function ImportData({ onImportSC, onImportPC }: ImportDataProps) {
           observations: row['Observacoes'] || row['Obs'] || '',
           _raw: row,
         }));
-        onImportSC(mappedReqs);
+        await onImportSC(mappedReqs);
         setImportStatus({ type: 'sc', count: mappedReqs.length });
       }
     } catch (err: any) {
