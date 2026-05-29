@@ -72,6 +72,46 @@ export function ImportData({ onImportSC, onImportPC }: ImportDataProps) {
     }
   };
 
+  const parseDateStr = (dateValue: any) => {
+    if (!dateValue) return new Date().toISOString();
+    if (typeof dateValue === 'number' || (!isNaN(Number(dateValue)) && Number(dateValue) > 20000)) {
+       const numDate = Number(dateValue);
+       return new Date(Math.round((numDate - 25569) * 86400 * 1000)).toISOString();
+    }
+    if (typeof dateValue === 'string') {
+      if (dateValue.includes('/')) {
+        const parts = dateValue.split('/');
+        if (parts.length === 3) {
+          const [day, month, year] = parts;
+          let parsedYear = Number(year.split(' ')[0]); // Handle cases like 12/03/2025 10:00
+          if (parsedYear < 100) {
+            parsedYear += parsedYear < 50 ? 2000 : 1900;
+          }
+          const parsed = new Date(parsedYear, Number(month) - 1, Number(day));
+          if (!isNaN(parsed.getTime())) return parsed.toISOString();
+        }
+      }
+      if (dateValue.includes('-')) {
+        const d = new Date(dateValue);
+        if (!isNaN(d.getTime())) return d.toISOString();
+      }
+      const d = new Date(dateValue);
+      if (!isNaN(d.getTime())) return d.toISOString();
+    }
+    return new Date().toISOString();
+  };
+
+  const getEmissaoValue = (row: any) => {
+    const keys = Object.keys(row);
+    const emissaoKey = keys.find(k => k.toLowerCase().includes('emiss') || k.toLowerCase().includes('emisão'));
+    if (emissaoKey && row[emissaoKey]) return row[emissaoKey];
+    
+    const dataKey = keys.find(k => k.toLowerCase().includes('data'));
+    if (dataKey && row[dataKey]) return row[dataKey];
+    
+    return null;
+  };
+
   const processFile = async (file: File, targetType: 'sc' | 'pc') => {
     try {
       const data = await file.arrayBuffer();
@@ -118,7 +158,7 @@ export function ImportData({ onImportSC, onImportPC }: ImportDataProps) {
         const mappedOrders: PurchaseOrder[] = json.map((row: any) => ({
           id: String(row['Num. PC'] || row['Pedido'] || row['ID'] || Math.random().toString(36).substring(7)),
           sc_id: String(row['Num. SC'] || row['Sol. Compra'] || row['SC'] || ''),
-          date: row['Emissao'] || row['Data'] || new Date().toISOString(),
+          date: parseDateStr(getEmissaoValue(row) || row['Emissao'] || row['Data'] || row['Emissão'] || row['Data Emissão']),
           supplier: row['Fornecedor'] || 'Não informado',
           category: row['Categoria'] || row['Grupo'] || 'Geral',
           totalValue: parseFloat(row['Valor Total'] || row['Total'] || '0') || 0,
@@ -131,7 +171,7 @@ export function ImportData({ onImportSC, onImportPC }: ImportDataProps) {
       } else {
         const mappedReqs: PurchaseRequest[] = json.map((row: any) => ({
           id: String(row['Numero da SC'] || row['Num. SC'] || row['Solicitacao'] || row['ID'] || Math.random().toString(36).substring(7)),
-          date: row['DT Emissao'] || row['Emissao'] || row['Data'] || new Date().toISOString(),
+          date: parseDateStr(getEmissaoValue(row) || row['DT Emissao'] || row['Emissao'] || row['Data'] || row['Emissão']),
           product: row['Produto'] || row['Descricao'] || 'Produto não especificado',
           category: row['Filial'] || row['Categoria'] || row['Grupo'] || 'Geral',
           quantity: parseFloat(row['Quantidade'] || row['Qtd'] || '0') || 0,

@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { AppState, PurchaseRequest, PurchaseOrder } from '../types';
 
-const STORAGE_KEY = 'protheus_monitor_data';
-const BACKUP_KEY = 'protheus_monitor_backup';
+const STORAGE_KEY = 'protheus_monitor_data_v2';
+const BACKUP_KEY = 'protheus_monitor_backup_v2';
 
 const defaultState: AppState = {
   purchaseRequests: [],
