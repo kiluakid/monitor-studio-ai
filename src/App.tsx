@@ -57,14 +57,6 @@ export default function App() {
             <span className="font-medium">Dashboard</span>
           </button>
           
-          <button
-            onClick={() => { setCurrentView('import'); setSidebarOpen(false); }}
-            className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${currentView === 'import' ? 'bg-neutral-800 text-white' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'}`}
-          >
-            <Upload className="w-5 h-5" />
-            <span className="font-medium">Importar Dados</span>
-          </button>
-
           <div className="pt-4 pb-2 px-4">
              <p className="text-xs font-bold uppercase tracking-wider text-neutral-500">Consultas</p>
           </div>
@@ -114,12 +106,12 @@ export default function App() {
 
           <div className="pt-2 border-t border-neutral-800 grid grid-cols-2 gap-2">
              <button
-                onClick={createBackup}
-                className="flex flex-col items-center justify-center p-2 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 transition"
-                title="Criar Ponto de Restauração"
+                onClick={() => { setCurrentView('import'); setSidebarOpen(false); }}
+                className={`flex flex-col items-center justify-center p-2 rounded-lg transition ${currentView === 'import' ? 'bg-neutral-800 border-neutral-600 border text-white' : 'bg-neutral-900 hover:bg-neutral-800 border border-neutral-700'}`}
+                title="Importar Dados"
              >
-                <HardDriveDownload className="w-4 h-4 text-neutral-400 mb-1" />
-                <span className="text-[10px] text-neutral-300">Fazer Backup</span>
+                <Upload className={`w-4 h-4 mb-1 ${currentView === 'import' ? 'text-white' : 'text-neutral-400'}`} />
+                <span className={`text-[10px] ${currentView === 'import' ? 'text-white' : 'text-neutral-300'}`}>Importar Dados</span>
              </button>
               <button
                 onClick={clearData}
@@ -130,11 +122,7 @@ export default function App() {
                 <span className="text-[10px] text-neutral-300 group-hover:text-rose-300">Limpar Dados</span>
              </button>
           </div>
-          {state.lastBackupDate && (
-             <p className="text-[10px] text-neutral-500 text-center px-1">
-                Último backup: {new Date(state.lastBackupDate).toLocaleTimeString('pt-BR')}
-             </p>
-          )}
+
         </div>
       </nav>
 
