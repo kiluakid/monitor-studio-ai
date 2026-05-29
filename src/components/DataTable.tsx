@@ -12,7 +12,7 @@ export function DataTable({ type, data }: DataTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterFilial, setFilterFilial] = useState('All');
   const [filterCategory, setFilterCategory] = useState('All');
-  const [sortBy, setSortBy] = useState<'date' | 'category' | 'filial'>('date');
+  const [sortBy, setSortBy] = useState<'date' | 'date_desc' | 'category' | 'filial'>('date_desc');
 
   // Extract unique filiais
   const filiais = useMemo(() => {
@@ -48,6 +48,7 @@ export function DataTable({ type, data }: DataTableProps) {
       return matchesSearch && matchesCategory && matchesFilial;
     }).sort((a, b) => {
       if (sortBy === 'date') return new Date(a.date).getTime() - new Date(b.date).getTime();
+      if (sortBy === 'date_desc') return new Date(b.date).getTime() - new Date(a.date).getTime();
       if (sortBy === 'category') return a.category.localeCompare(b.category);
       if (sortBy === 'filial') {
          const filialA = String(a._raw?.['Filial'] || a.category || '').toLowerCase();
@@ -124,7 +125,8 @@ export function DataTable({ type, data }: DataTableProps) {
                  onChange={(e) => setSortBy(e.target.value as any)}
                  className="px-3 py-1.5 bg-neutral-900 border border-neutral-800 text-neutral-300 rounded-md outline-none focus:border-indigo-500 font-medium"
                >
-                 <option value="date">Ordenar por Data</option>
+                 <option value="date_desc">Ordenar por Data (Mais Novo)</option>
+                 <option value="date">Ordenar por Data (Mais Antigo)</option>
                  <option value="filial">Ordenar por Filial</option>
                  <option value="category">Ordenar por Categoria</option>
                </select>
