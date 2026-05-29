@@ -47,7 +47,7 @@ export function DataTable({ type, data }: DataTableProps) {
       
       return matchesSearch && matchesCategory && matchesFilial;
     }).sort((a, b) => {
-      if (sortBy === 'date') return new Date(b.date).getTime() - new Date(a.date).getTime();
+      if (sortBy === 'date') return new Date(a.date).getTime() - new Date(b.date).getTime();
       if (sortBy === 'category') return a.category.localeCompare(b.category);
       if (sortBy === 'filial') {
          const filialA = String(a._raw?.['Filial'] || a.category || '').toLowerCase();
