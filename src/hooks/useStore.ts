@@ -69,17 +69,65 @@ export function useStore() {
     }
   }, []);
   
+  const sanitizeId = (id: string) => {
+    return String(id).replace(/[\/#\.\[\]]/g, '_').substring(0, 128);
+  };
+
+  const removeUndefined = (obj: any): any => {
+    if (Array.isArray(obj)) {
+      return obj.map(removeUndefined);
+    } else if (obj !== null && typeof obj === 'object') {
+      const newObj: any = {};
+      for (const [key, value] of Object.entries(obj)) {
+        if (value !== undefined) {
+          newObj[key] = removeUndefined(value);
+        }
+      }
+      return newObj;
+    }
+    return obj;
+  };
+
+  const executeInBatches = async (items: any[], docCollection: string) => {
+    const CHUNK_SIZE = 400;
+    for (let i = 0; i < items.length; i += CHUNK_SIZE) {
+      const chunk = items.slice(i, i + CHUNK_SIZE);
+      const batch = writeBatch(db);
+      chunk.forEach(item => {
+        batch.set(doc(db, docCollection, sanitizeId(item.id)), removeUndefined(item));
+      });
+      await batch.commit();
+    }
+  };
+
   const clearData = useCallback(async () => {
     if (confirm('Tem certeza que deseja apagar todos os dados de todos os dispositivos?')) {
-      const batch = writeBatch(db);
-      state.purchaseRequests.forEach(req => {
-        batch.delete(doc(db, 'purchaseRequests', String(req.id)));
-      });
-      state.purchaseOrders.forEach(ord => {
-        batch.delete(doc(db, 'purchaseOrders', String(ord.id)));
-      });
       try {
-        await batch.commit();
+        const CHUNK_SIZE = 400;
+        let batch = writeBatch(db);
+        let count = 0;
+        
+        for (const req of state.purchaseRequests) {
+          batch.delete(doc(db, 'purchaseRequests', sanitizeId(req.id)));
+          count++;
+          if (count === CHUNK_SIZE) {
+            await batch.commit();
+            batch = writeBatch(db);
+            count = 0;
+          }
+        }
+        for (const ord of state.purchaseOrders) {
+          batch.delete(doc(db, 'purchaseOrders', sanitizeId(ord.id)));
+          count++;
+          if (count === CHUNK_SIZE) {
+            await batch.commit();
+            batch = writeBatch(db);
+            count = 0;
+          }
+        }
+        if (count > 0) {
+          await batch.commit();
+        }
       } catch (e) {
         console.error('Error clearing data', e);
       }
@@ -88,16 +136,8 @@ export function useStore() {
 
   const setPurchaseRequests = async (requests: PurchaseRequest[]) => {
     setIsSaved(false);
-    const batch = writeBatch(db);
-    
-    // In a real scenario we might delete all existing docs first, 
-    // but here we just overwrite/update provided.
-    requests.forEach(req => {
-      batch.set(doc(db, 'purchaseRequests', String(req.id)), req);
-    });
-    
     try {
-      await batch.commit();
+      await executeInBatches(requests, 'purchaseRequests');
       setIsSaved(true);
     } catch (e) {
       console.error('Error setting requests', e);
@@ -106,13 +146,8 @@ export function useStore() {
 
   const setPurchaseOrders = async (orders: PurchaseOrder[]) => {
     setIsSaved(false);
-    const batch = writeBatch(db);
-    orders.forEach(ord => {
-      batch.set(doc(db, 'purchaseOrders', String(ord.id)), ord);
-    });
-    
     try {
-      await batch.commit();
+      await executeInBatches(orders, 'purchaseOrders');
       setIsSaved(true);
     } catch (e) {
       console.error('Error setting orders', e);
@@ -121,12 +156,8 @@ export function useStore() {
 
   const addPurchaseRequests = async (requests: PurchaseRequest[]) => {
     setIsSaved(false);
-    const batch = writeBatch(db);
-    requests.forEach(req => {
-       batch.set(doc(db, 'purchaseRequests', String(req.id)), req);
-    });
     try {
-      await batch.commit();
+      await executeInBatches(requests, 'purchaseRequests');
       setIsSaved(true);
     } catch (e) {
       console.error('Error adding requests', e);
@@ -135,12 +166,8 @@ export function useStore() {
 
   const addPurchaseOrders = async (orders: PurchaseOrder[]) => {
     setIsSaved(false);
-    const batch = writeBatch(db);
-    orders.forEach(ord => {
-       batch.set(doc(db, 'purchaseOrders', String(ord.id)), ord);
-    });
     try {
-      await batch.commit();
+      await executeInBatches(orders, 'purchaseOrders');
       setIsSaved(true);
     } catch (e) {
       console.error('Error adding orders', e);
