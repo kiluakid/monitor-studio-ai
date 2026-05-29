@@ -1,0 +1,24 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+    
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    
+    match /purchaseRequests/{id} {
+      allow read, list: if true;
+      allow create: if isValidId(id);
+      allow update: if isValidId(id);
+      allow delete: if true;
+    }
+    
+    match /purchaseOrders/{id} {
+      allow read, list: if true;
+      allow create: if isValidId(id);
+      allow update: if isValidId(id);
+      allow delete: if true;
+    }
+  }
+}

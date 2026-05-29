@@ -1,0 +1,49 @@
+{
+  "entities": {
+    "PurchaseRequest": {
+      "title": "Purchase Request",
+      "description": "A purchase request entity.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "product": { "type": "string" },
+        "category": { "type": "string" },
+        "quantity": { "type": "number" },
+        "urgency": { "type": "string" },
+        "status": { "type": "string" },
+        "requester": { "type": "string" },
+        "observations": { "type": "string" },
+        "orgId": { "type": "string" }
+      },
+      "required": ["id", "orgId"]
+    },
+    "PurchaseOrder": {
+      "title": "Purchase Order",
+      "description": "A purchase order entity.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "sc_id": { "type": "string" },
+        "date": { "type": "string" },
+        "supplier": { "type": "string" },
+        "category": { "type": "string" },
+        "totalValue": { "type": "number" },
+        "status": { "type": "string" },
+        "deliveryDate": { "type": "string" },
+        "orgId": { "type": "string" }
+      },
+      "required": ["id", "orgId"]
+    }
+  },
+  "firestore": {
+    "/purchaseRequests/{id}": {
+      "schema": { "$ref": "#/entities/PurchaseRequest" },
+      "description": "Global purchase requests"
+    },
+    "/purchaseOrders/{id}": {
+      "schema": { "$ref": "#/entities/PurchaseOrder" },
+      "description": "Global purchase orders"
+    }
+  }
+}
