@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { PurchaseRequest, PurchaseOrder } from '../types';
 import { formatCurrency, formatDate } from '../lib/utils';
-import { Search, Filter } from 'lucide-react';
+import { Search, Filter, X } from 'lucide-react';
 
 interface DataTableProps {
   type: 'sc' | 'pc';
@@ -13,6 +13,7 @@ export function DataTable({ type, data }: DataTableProps) {
   const [filterFilial, setFilterFilial] = useState('All');
   const [filterCategory, setFilterCategory] = useState('All');
   const [sortBy, setSortBy] = useState<'date' | 'date_desc' | 'category' | 'filial'>('date_desc');
+  const [selectedItem, setSelectedItem] = useState<(PurchaseRequest | PurchaseOrder) | null>(null);
 
   // Extract unique filiais
   const filiais = useMemo(() => {
@@ -78,7 +79,7 @@ export function DataTable({ type, data }: DataTableProps) {
   }, [data]);
 
   return (
-    <div className="bg-neutral-900 rounded-xl border border-neutral-800 shadow-sm overflow-hidden flex flex-col h-full">
+    <div className="bg-neutral-900 rounded-xl border border-neutral-800 shadow-sm overflow-hidden flex flex-col h-full relative">
       {/* Header & Filters */}
       <div className="p-4 border-b border-neutral-800 bg-neutral-950 space-y-4">
         <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
@@ -154,7 +155,11 @@ export function DataTable({ type, data }: DataTableProps) {
                 </tr>
              ) : (
                 filteredData.map((item, index) => (
-                  <tr key={index} className="border-b border-neutral-800/50 hover:bg-neutral-800/30 transition-colors">
+                  <tr 
+                    key={index} 
+                    className="border-b border-neutral-800/50 hover:bg-neutral-800/30 transition-colors cursor-pointer"
+                    onClick={() => setSelectedItem(item)}
+                  >
                     {dynamicColumns ? (
                       dynamicColumns.map((col, idx) => {
                          const value = item._raw?.[col];
@@ -188,6 +193,43 @@ export function DataTable({ type, data }: DataTableProps) {
       <div className="p-4 border-t border-neutral-800 bg-neutral-950 text-xs text-neutral-500 text-right">
         Total Exibido: {filteredData.length}
       </div>
+
+      {selectedItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedItem(null)}>
+          <div className="bg-neutral-900 border border-neutral-700 rounded-2xl shadow-2xl overflow-hidden w-full max-w-3xl max-h-[85vh] flex flex-col motion-preset-slide-down" onClick={(e) => e.stopPropagation()}>
+             <div className="p-5 bg-neutral-950 border-b border-neutral-800 flex items-center justify-between">
+                <h3 className="text-xl font-bold text-white">
+                  Detalhes do {type === 'sc' ? 'Solicitação' : 'Pedido'}
+                  <span className="ml-3 px-2.5 py-1 text-xs bg-neutral-800 text-neutral-400 rounded-md whitespace-nowrap">
+                    ID: {selectedItem.id}
+                  </span>
+                </h3>
+                <button onClick={() => setSelectedItem(null)} className="p-2 text-neutral-400 hover:text-white bg-neutral-800/50 hover:bg-neutral-800 rounded-full transition-colors">
+                   <X className="w-5 h-5" />
+                </button>
+             </div>
+             <div className="p-6 overflow-y-auto w-full grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                {selectedItem._raw && Object.entries(selectedItem._raw).filter(([key, val]) => {
+                    const keyLower = key.trim().toLowerCase();
+                    return !keyLower.includes('empty') && !keyLower.includes('listagem do browse') && val !== undefined && val !== null && val !== '';
+                }).map(([key, val], idx) => {
+                   let displayVal = String(val);
+                   const isDateCol = key.toLowerCase().includes('dt') || key.toLowerCase().includes('data') || key.toLowerCase().includes('emissão') || key.toLowerCase().includes('emissao') || key.toLowerCase().includes('entrega') || key.toLowerCase().includes('previsao');
+                   if (isDateCol && typeof val === 'number' && val > 10000) {
+                      const date = new Date(Math.round((val - 25569) * 86400 * 1000));
+                      displayVal = date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+                   }
+                   return (
+                     <div key={idx} className="flex flex-col border-b border-neutral-800/50 pb-3">
+                        <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">{key}</span>
+                        <span className="text-sm text-neutral-200 break-words">{displayVal}</span>
+                     </div>
+                   )
+                })}
+             </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
