@@ -3,6 +3,7 @@ import { AppState, PurchaseRequest, PurchaseOrder } from '../types';
 import { db } from '../lib/firebase';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 
+const STORAGE_KEY = 'protheus_monitor_data_v2';
 const BACKUP_KEY = 'protheus_monitor_backup_v2';
 
 const defaultState: AppState = {
@@ -12,8 +13,28 @@ const defaultState: AppState = {
 };
 
 export function useStore() {
-  const [state, setState] = useState<AppState>(defaultState);
+  const [state, setState] = useState<AppState>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      return stored ? JSON.parse(stored) : defaultState;
+    } catch (e) {
+      console.error('Failed to load state from localStorage', e);
+      return defaultState;
+    }
+  });
   const [isSaved, setIsSaved] = useState(true);
+
+  // Auto-save local
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch (e) {
+        console.error('Failed to save state locally', e);
+      }
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [state]);
 
   // Load from Firebase
   useEffect(() => {
@@ -23,14 +44,18 @@ export function useStore() {
     try {
       unsubscribeRequests = onSnapshot(collection(db, 'purchaseRequests'), (snapshot) => {
         const requests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PurchaseRequest));
-        setState(prev => ({ ...prev, purchaseRequests: requests }));
+        if (requests.length > 0 || snapshot.metadata.fromCache === false) {
+           setState(prev => ({ ...prev, purchaseRequests: requests }));
+        }
       }, (error) => {
         console.error('Error listening to requests:', error);
       });
 
       unsubscribeOrders = onSnapshot(collection(db, 'purchaseOrders'), (snapshot) => {
         const orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PurchaseOrder));
-        setState(prev => ({ ...prev, purchaseOrders: orders }));
+        if (orders.length > 0 || snapshot.metadata.fromCache === false) {
+           setState(prev => ({ ...prev, purchaseOrders: orders }));
+        }
       }, (error) => {
         console.error('Error listening to orders:', error);
       });
@@ -107,6 +132,7 @@ export function useStore() {
 
   const clearData = useCallback(async () => {
     if (confirm('Tem certeza que deseja apagar todos os dados de todos os dispositivos?')) {
+      setState(defaultState);
       try {
         const CHUNK_SIZE = 400;
         let batch = writeBatch(db);
@@ -141,6 +167,7 @@ export function useStore() {
 
   const setPurchaseRequests = async (requests: PurchaseRequest[]) => {
     setIsSaved(false);
+    setState(prev => ({ ...prev, purchaseRequests: requests }));
     try {
       await executeInBatches(requests, 'purchaseRequests');
       setIsSaved(true);
@@ -152,6 +179,7 @@ export function useStore() {
 
   const setPurchaseOrders = async (orders: PurchaseOrder[]) => {
     setIsSaved(false);
+    setState(prev => ({ ...prev, purchaseOrders: orders }));
     try {
       await executeInBatches(orders, 'purchaseOrders');
       setIsSaved(true);
@@ -163,6 +191,11 @@ export function useStore() {
 
   const addPurchaseRequests = async (requests: PurchaseRequest[]) => {
     setIsSaved(false);
+    setState(prev => {
+      const existingMap = new Map(prev.purchaseRequests.map(r => [r.id, r]));
+      requests.forEach(r => existingMap.set(r.id, r));
+      return { ...prev, purchaseRequests: Array.from(existingMap.values()) };
+    });
     try {
       await executeInBatches(requests, 'purchaseRequests');
       setIsSaved(true);
@@ -174,6 +207,11 @@ export function useStore() {
 
   const addPurchaseOrders = async (orders: PurchaseOrder[]) => {
     setIsSaved(false);
+    setState(prev => {
+      const existingMap = new Map(prev.purchaseOrders.map(o => [o.id, o]));
+      orders.forEach(o => existingMap.set(o.id, o));
+      return { ...prev, purchaseOrders: Array.from(existingMap.values()) };
+    });
     try {
       await executeInBatches(orders, 'purchaseOrders');
       setIsSaved(true);

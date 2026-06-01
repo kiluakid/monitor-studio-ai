@@ -8,17 +8,11 @@ service cloud.firestore {
     function isValidId(id) { return id is string && id.size() > 0; }
     
     match /purchaseRequests/{id} {
-      allow read, list: if true;
-      allow create: if isValidId(id);
-      allow update: if isValidId(id);
-      allow delete: if true;
+      allow read, write: if true;
     }
     
     match /purchaseOrders/{id} {
-      allow read, list: if true;
-      allow create: if isValidId(id);
-      allow update: if isValidId(id);
-      allow delete: if true;
+      allow read, write: if true;
     }
   }
 }
