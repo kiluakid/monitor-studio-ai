@@ -102,29 +102,21 @@ export function useStore() {
     return String(id).replace(/[\/#\.\[\]]/g, '_').substring(0, 128);
   };
 
-  const sanitizeForFirebase = (obj: any): any => {
-    if (Array.isArray(obj)) {
-      return obj.map(sanitizeForFirebase);
-    } else if (obj !== null && typeof obj === 'object') {
-      const newObj: any = {};
-      for (const [key, value] of Object.entries(obj)) {
-        if (value !== undefined) {
-          const cleanKey = String(key).replace(/[\.\/#\[\]~*]/g, '_');
-          newObj[cleanKey] = sanitizeForFirebase(value);
-        }
-      }
-      return newObj;
-    }
-    return obj;
-  };
-
   const executeInBatches = async (items: any[], docCollection: string) => {
     const CHUNK_SIZE = 400;
     for (let i = 0; i < items.length; i += CHUNK_SIZE) {
       const chunk = items.slice(i, i + CHUNK_SIZE);
       const batch = writeBatch(db);
       chunk.forEach(item => {
-        batch.set(doc(db, docCollection, sanitizeId(item.id)), sanitizeForFirebase(item));
+        // Strip out React/Proxy garbage
+        const cleanItem = { ...item };
+        delete cleanItem._raw; // just in case
+        Object.keys(cleanItem).forEach(key => {
+          if (cleanItem[key] === undefined) {
+             delete cleanItem[key];
+          }
+        });
+        batch.set(doc(db, docCollection, sanitizeId(item.id)), cleanItem);
       });
       await batch.commit();
     }

@@ -164,7 +164,6 @@ export function ImportData({ onImportSC, onImportPC }: ImportDataProps) {
           totalValue: parseFloat(row['Valor Total'] || row['Total'] || '0') || 0,
           status: (row['Status'] || 'Aberto') as PCStatus,
           deliveryDate: row['Entrega'] || row['Previsao'] || row['Data'] || '',
-          _raw: row,
         }));
         await onImportPC(mappedOrders);
         setImportStatus({ type: 'pc', count: mappedOrders.length });
@@ -179,7 +178,6 @@ export function ImportData({ onImportSC, onImportPC }: ImportDataProps) {
           status: (row['Status'] || 'Pendente') as SCStatus,
           requester: row['Solicitante'] || row['Usuario'] || 'Sistema',
           observations: row['Observacoes'] || row['Obs'] || '',
-          _raw: row,
         }));
         await onImportSC(mappedReqs);
         setImportStatus({ type: 'sc', count: mappedReqs.length });
