@@ -24,11 +24,15 @@ export function useStore() {
       unsubscribeRequests = onSnapshot(collection(db, 'purchaseRequests'), (snapshot) => {
         const requests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PurchaseRequest));
         setState(prev => ({ ...prev, purchaseRequests: requests }));
+      }, (error) => {
+        console.error('Error listening to requests:', error);
       });
 
       unsubscribeOrders = onSnapshot(collection(db, 'purchaseOrders'), (snapshot) => {
         const orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PurchaseOrder));
         setState(prev => ({ ...prev, purchaseOrders: orders }));
+      }, (error) => {
+        console.error('Error listening to orders:', error);
       });
     } catch (e) {
       console.error('Failed to attach listeners', e);
