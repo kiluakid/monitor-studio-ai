@@ -89,7 +89,7 @@ export function DataTable({ type, data }: DataTableProps) {
         if (item._raw) {
           Object.keys(item._raw).forEach(k => {
              const keyLower = k.trim().toLowerCase();
-             if (!keyLower.includes('empty') && !keyLower.includes('listagem do browse')) {
+             if (!keyLower.includes('empty') && !keyLower.includes('listagem do browse') && keyLower !== '') {
                 keys.add(k);
              }
           });

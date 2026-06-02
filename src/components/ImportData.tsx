@@ -95,15 +95,36 @@ export function ImportData({ onImportSC, onImportPC, onImportInventory }: Import
       const worksheet = workbook.Sheets[firstSheetName];
       
       // Obter os dados como array bidimensional para encontrar o cabeçalho real
-      const rawData = xlsx.utils.sheet_to_json<any>(worksheet, { header: 1 });
+      let rawData = xlsx.utils.sheet_to_json<any>(worksheet, { header: 1 });
       
+      // Protheus frequently exports CSVs with semicolons that get parsed as a single column by the xlsx library
+      if (rawData.length > 0) {
+         let isSemicolonCSV = true;
+         // Check first 10 rows to see if they all have exactly 1 column containing a semicolon
+         for(let i=0; i < Math.min(rawData.length, 10); i++) {
+             if (rawData[i] && rawData[i].length > 1) {
+                 isSemicolonCSV = false;
+                 break;
+             }
+         }
+         
+         if (isSemicolonCSV) {
+             rawData = rawData.map(row => {
+                 if (row && row.length > 0 && typeof row[0] === 'string' && row[0].includes(';')) {
+                     return row[0].split(';');
+                 }
+                 return row;
+             });
+         }
+      }
+
       // Procurar o índice da linha de cabeçalho
       let headerRowIndex = 0;
-      for (let i = 0; i < Math.min(rawData.length, 20); i++) {
+      for (let i = 0; i < Math.min(rawData.length, 50); i++) {
         const row = rawData[i];
         if (row && Array.isArray(row)) {
           const rowText = row.join(' ').toLowerCase();
-          if (rowText.includes('filial') || rowText.includes('numero da sc') || rowText.includes('solicitacao') || rowText.includes('produto') || rowText.includes('fornecedor') || rowText.includes('num. pc') || rowText.includes('pedido') || rowText.includes('armazem') || rowText.includes('local') || rowText.includes('codigo') || rowText.includes('cód')) {
+          if (rowText.includes('filial') || rowText.includes('numero da sc') || rowText.includes('solicitacao') || rowText.includes('produto') || rowText.includes('fornecedor') || rowText.includes('num. pc') || rowText.includes('pedido') || rowText.includes('armazem') || rowText.includes('local') || rowText.includes('codigo') || rowText.includes('cód') || rowText.includes('saldo atual') || rowText.includes('desc. cientifica') || rowText.includes('empenho')) {
             headerRowIndex = i;
             break;
           }
@@ -128,15 +149,26 @@ export function ImportData({ onImportSC, onImportPC, onImportInventory }: Import
       if (!json || json.length === 0) {
         throw new Error('Planilha vazia ou formato inválido.');
       }
+
+      const getVal = (row: any, searchKeys: string[]) => {
+         const keys = Object.keys(row);
+         for (const sk of searchKeys) {
+            const found = keys.find(k => k.toLowerCase() === sk.toLowerCase());
+            if (found !== undefined && row[found] !== undefined && row[found] !== null && row[found] !== '') {
+               return row[found];
+            }
+         }
+         return null;
+      };
       
       if (targetType === 'inventory') {
         const mappedInventory: InventoryItem[] = json.map((row: any) => ({
-          id: String(row['Codigo'] || row['Cód'] || row['Produto'] || row['ID'] || Math.random().toString(36).substring(7)),
-          description: row['Descricao'] || row['Descrição'] || 'Produto não especificado',
-          warehouse: row['Armazem'] || row['Armazém'] || row['Local'] || '01',
-          quantity: parseFloat(row['Quantidade'] || row['Qtd'] || '0') || 0,
-          unitValue: parseFloat(row['Custo Unitario'] || row['Custo'] || row['Valor Unitario']),
-          totalValue: parseFloat(row['Custo Total'] || row['Valor Total']),
+          id: String(getVal(row, ['Codigo', 'Cód', 'Código', 'Produto', 'ID']) || Math.random().toString(36).substring(7)),
+          description: String(getVal(row, ['Descricao', 'Descrição', 'Desc.']) || 'Produto não especificado'),
+          warehouse: String(getVal(row, ['Armazem', 'Armazém', 'Local', 'Filial']) || '01'),
+          quantity: parseFloat(String(getVal(row, ['Saldo Atual', 'Quantidade', 'Qtd', 'Saldo'])) || '0') || 0,
+          unitValue: parseFloat(String(getVal(row, ['Custo Unitario', 'Custo Unitário', 'Custo', 'Valor Unitario'])) || '0') || 0,
+          totalValue: parseFloat(String(getVal(row, ['Custo Total', 'Valor Total', 'Valor', 'Empenho'])) || '0') || 0,
           date: new Date().toISOString(),
           _raw: row,
         }));
@@ -144,28 +176,30 @@ export function ImportData({ onImportSC, onImportPC, onImportInventory }: Import
         setImportStatus({ type: 'inventory', count: mappedInventory.length });
       } else if (targetType === 'pc') {
         const mappedOrders: PurchaseOrder[] = json.map((row: any) => ({
-          id: String(row['Num. PC'] || row['Pedido'] || row['ID'] || Math.random().toString(36).substring(7)),
-          sc_id: String(row['Num. SC'] || row['Sol. Compra'] || row['SC'] || ''),
-          date: parseDateStr(getEmissaoValue(row) || row['Emissao'] || row['Data'] || row['Emissão'] || row['Data Emissão']),
-          supplier: row['Fornecedor'] || 'Não informado',
-          category: row['Categoria'] || row['Grupo'] || 'Geral',
-          totalValue: parseFloat(row['Valor Total'] || row['Total'] || '0') || 0,
-          status: (row['Status'] || 'Aberto') as PCStatus,
-          deliveryDate: row['Entrega'] || row['Previsao'] || row['Data'] || '',
+          id: String(getVal(row, ['Num. PC', 'Pedido', 'ID']) || Math.random().toString(36).substring(7)),
+          sc_id: String(getVal(row, ['Num. SC', 'Sol. Compra', 'SC']) || ''),
+          date: parseDateStr(getEmissaoValue(row) || getVal(row, ['Emissao', 'Data', 'Emissão', 'Data Emissão'])),
+          supplier: String(getVal(row, ['Fornecedor']) || 'Não informado'),
+          category: String(getVal(row, ['Categoria', 'Grupo']) || 'Geral'),
+          totalValue: parseFloat(String(getVal(row, ['Valor Total', 'Total'])) || '0') || 0,
+          status: String(getVal(row, ['Status']) || 'Aberto') as PCStatus,
+          deliveryDate: String(getVal(row, ['Entrega', 'Previsao', 'Data']) || ''),
+          _raw: row,
         }));
         await onImportPC(mappedOrders);
         setImportStatus({ type: 'pc', count: mappedOrders.length });
       } else {
         const mappedReqs: PurchaseRequest[] = json.map((row: any) => ({
-          id: String(row['Numero da SC'] || row['Num. SC'] || row['Solicitacao'] || row['ID'] || Math.random().toString(36).substring(7)),
-          date: parseDateStr(getEmissaoValue(row) || row['DT Emissao'] || row['Emissao'] || row['Data'] || row['Emissão']),
-          product: row['Produto'] || row['Descricao'] || 'Produto não especificado',
-          category: row['Filial'] || row['Categoria'] || row['Grupo'] || 'Geral',
-          quantity: parseFloat(row['Quantidade'] || row['Qtd'] || '0') || 0,
-          urgency: (row['Urgencia'] || 'Normal') as UrgencyLevel,
-          status: (row['Status'] || 'Pendente') as SCStatus,
-          requester: row['Solicitante'] || row['Usuario'] || 'Sistema',
-          observations: row['Observacoes'] || row['Obs'] || '',
+          id: String(getVal(row, ['Numero da SC', 'Num. SC', 'Solicitacao', 'ID']) || Math.random().toString(36).substring(7)),
+          date: parseDateStr(getEmissaoValue(row) || getVal(row, ['DT Emissao', 'Emissao', 'Data', 'Emissão'])),
+          product: String(getVal(row, ['Produto', 'Descricao']) || 'Produto não especificado'),
+          category: String(getVal(row, ['Filial', 'Categoria', 'Grupo']) || 'Geral'),
+          quantity: parseFloat(String(getVal(row, ['Quantidade', 'Qtd'])) || '0') || 0,
+          urgency: String(getVal(row, ['Urgencia']) || 'Normal') as UrgencyLevel,
+          status: String(getVal(row, ['Status']) || 'Pendente') as SCStatus,
+          requester: String(getVal(row, ['Solicitante', 'Usuario']) || 'Sistema'),
+          observations: String(getVal(row, ['Observacoes', 'Obs']) || ''),
+          _raw: row,
         }));
         await onImportSC(mappedReqs);
         setImportStatus({ type: 'sc', count: mappedReqs.length });
