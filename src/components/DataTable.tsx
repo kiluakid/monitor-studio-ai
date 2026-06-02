@@ -321,13 +321,15 @@ export function DataTable({ type, data }: DataTableProps) {
                 
                 if (filialData.length === 0) return null;
                 
-                const [filialPart, tipoPart] = groupKey.split(' - ');
+                const separatorIndex = groupKey.indexOf(' - ');
+                const filialPart = separatorIndex > -1 ? groupKey.substring(0, separatorIndex) : groupKey;
+                const tipoPart = separatorIndex > -1 ? groupKey.substring(separatorIndex + 3) : '';
                 
                 return (
                   <div key={groupKey} className="bg-neutral-900 border border-neutral-700 w-full overflow-x-auto">
                     <div className="bg-neutral-800 text-cyan-400 font-bold px-4 py-3 border-b border-neutral-700 flex justify-between items-center whitespace-nowrap">
                        <span className="sticky left-4 uppercase tracking-wide">
-                          F I L I A L : {filialPart} <span className="text-neutral-500 mx-2">|</span> T I P O : {tipoPart}
+                          F I L I A L : {filialPart} {tipoPart && <><span className="text-neutral-500 mx-2">|</span> T I P O : {tipoPart}</>}
                        </span>
                        <span className="sticky right-4 text-xs font-normal text-neutral-400 bg-neutral-900 px-2 py-1 rounded">
                          {filialData.length} Itens

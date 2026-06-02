@@ -111,7 +111,8 @@ export function ImportData({ onImportSC, onImportPC, onImportInventory }: Import
          if (isSemicolonCSV) {
              rawData = rawData.map(row => {
                  if (row && row.length > 0 && typeof row[0] === 'string' && row[0].includes(';')) {
-                     return row[0].split(';');
+                     // Remover aspas para evitar problemas em CSV exportado do Protheus
+                     return row[0].replace(/"/g, '').split(';');
                  }
                  return row;
              });
@@ -123,7 +124,7 @@ export function ImportData({ onImportSC, onImportPC, onImportInventory }: Import
       for (let i = 0; i < Math.min(rawData.length, 50); i++) {
         const row = rawData[i];
         if (row && Array.isArray(row)) {
-          const rowText = row.join(' ').toLowerCase();
+          const rowText = row.join(' ').toLowerCase().replace(/"/g, '');
           if (rowText.includes('filial') || rowText.includes('numero da sc') || rowText.includes('solicitacao') || rowText.includes('produto') || rowText.includes('fornecedor') || rowText.includes('num. pc') || rowText.includes('pedido') || rowText.includes('armazem') || rowText.includes('local') || rowText.includes('codigo') || rowText.includes('cód') || rowText.includes('saldo atual') || rowText.includes('desc. cientifica') || rowText.includes('empenho')) {
             headerRowIndex = i;
             break;
@@ -132,14 +133,26 @@ export function ImportData({ onImportSC, onImportPC, onImportInventory }: Import
       }
 
       const headers = rawData[headerRowIndex] || [];
+      const cleanHeaders = headers.map((h: any) => typeof h === 'string' ? h.replace(/^["'\s]+|["'\s]+$/g, '').trim() : h);
       
       // Mapear os dados usando o cabeçalho correto
       const json = rawData.slice(headerRowIndex + 1).map(row => {
         const obj: any = {};
         if (Array.isArray(row)) {
-          headers.forEach((header: any, index: number) => {
-            if (header && typeof header === 'string') {
-              obj[header.trim()] = row[index];
+          cleanHeaders.forEach((header: any, index: number) => {
+            if (header && typeof header === 'string' && header !== '') {
+              let val = row[index];
+              if (typeof val === 'string') {
+                 val = val.replace(/^["'\s]+|["'\s]+$/g, '').trim();
+                 // Try to convert string numbers
+                 if (/^-?\d+,\d+$/.test(val)) val = parseFloat(val.replace(',', '.'));
+                 else if (/^-?\d+\.\d+,\d+$/.test(val)) val = parseFloat(val.replace('.', '').replace(',', '.'));
+                 else if (/^-?\d+\.\d+$/.test(val)) val = parseFloat(val);
+                 else if (/^-?\d+$/.test(val) && val.length < 16) val = parseInt(val, 10);
+              }
+              if (val !== undefined && val !== null && val !== '') {
+                 obj[header] = val;
+              }
             }
           });
         }
