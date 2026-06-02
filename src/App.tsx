@@ -12,13 +12,14 @@ import {
   HardDriveDownload,
   AlertTriangle,
   Menu,
-  X
+  X,
+  PackageSearch
 } from 'lucide-react';
 
-type View = 'dashboard' | 'import' | 'sc' | 'pc';
+type View = 'dashboard' | 'import' | 'sc' | 'pc' | 'inventory';
 
 export default function App() {
-  const { state, isSaved, forceSave, createBackup, loadBackup, clearData, addPurchaseRequests, addPurchaseOrders } = useStore();
+  const { state, isSaved, forceSave, createBackup, loadBackup, clearData, addPurchaseRequests, addPurchaseOrders, addInventory } = useStore();
   const [currentView, setCurrentView] = useState<View>('dashboard');
   const [isSidebarOpen, setSidebarOpen] = useState(false);
 
@@ -45,7 +46,7 @@ export default function App() {
           <h1 className="text-2xl font-bold tracking-tight text-white mb-1">
             Protheus Monitor
           </h1>
-          <p className="text-neutral-400 text-xs font-medium tracking-wide">MATA110 & MATA121</p>
+          <p className="text-neutral-400 text-xs font-medium tracking-wide">MATA110, MATA121, MATR290</p>
         </div>
 
         <div className="flex-1 px-4 py-6 md:py-2 space-y-1 overflow-y-auto">
@@ -88,6 +89,20 @@ export default function App() {
               <span className="bg-neutral-700 text-xs py-0.5 px-2 rounded-full text-white">{state.purchaseOrders.length}</span>
             )}
           </button>
+
+          <button
+            onClick={() => { setCurrentView('inventory'); setSidebarOpen(false); }}
+            className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${currentView === 'inventory' ? 'bg-neutral-800 text-white' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'}`}
+          >
+            <PackageSearch className="w-5 h-5" />
+            <div className="flex-1 text-left">
+              <span className="font-medium block">Estoque</span>
+              <span className="text-xs opacity-70">MATR290</span>
+            </div>
+            {state.inventory?.length > 0 && (
+              <span className="bg-neutral-700 text-xs py-0.5 px-2 rounded-full text-white">{state.inventory.length}</span>
+            )}
+          </button>
         </div>
 
         <div className="p-4 bg-neutral-950 border-t border-neutral-900 space-y-3">
@@ -111,7 +126,7 @@ export default function App() {
                 title="Importar Dados"
              >
                 <Upload className={`w-4 h-4 mb-1 ${currentView === 'import' ? 'text-white' : 'text-neutral-400'}`} />
-                <span className={`text-[10px] ${currentView === 'import' ? 'text-white' : 'text-neutral-300'}`}>Importar Dados</span>
+                <span className={`text-[10px] ${currentView === 'import' ? 'text-white' : 'text-neutral-300'}`}>Importar</span>
              </button>
               <button
                 onClick={clearData}
@@ -119,7 +134,7 @@ export default function App() {
                 title="Apagar dados atuais"
              >
                 <AlertTriangle className="w-4 h-4 text-neutral-400 group-hover:text-rose-400 mb-1" />
-                <span className="text-[10px] text-neutral-300 group-hover:text-rose-300">Limpar Dados</span>
+                <span className="text-[10px] text-neutral-300 group-hover:text-rose-300">Limpar</span>
              </button>
           </div>
 
@@ -140,6 +155,7 @@ export default function App() {
               {currentView === 'import' && 'Importação de Dados'}
               {currentView === 'sc' && 'Monitor de SC (MATA110)'}
               {currentView === 'pc' && 'Monitor de PC (MATA121)'}
+              {currentView === 'inventory' && 'Análise de Estoque (MATR290)'}
             </h2>
           </div>
           
@@ -166,6 +182,10 @@ export default function App() {
                   addPurchaseOrders(data);
                   setCurrentView('pc');
                }} 
+               onImportInventory={(data) => {
+                  addInventory(data);
+                  setCurrentView('inventory');
+               }}
              />
           )}
 
@@ -178,6 +198,12 @@ export default function App() {
           {currentView === 'pc' && (
              <div className="h-full">
                 <DataTable type="pc" data={state.purchaseOrders} />
+             </div>
+          )}
+
+          {currentView === 'inventory' && (
+             <div className="h-full">
+                <DataTable type="inventory" data={state.inventory || []} />
              </div>
           )}
         </div>

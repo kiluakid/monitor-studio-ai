@@ -12,6 +12,7 @@ export interface PurchaseRequest {
   status: SCStatus; // Status
   requester: string; // Solicitante
   observations?: string; // Obs
+  _raw?: Record<string, any>;
 }
 
 export interface PurchaseOrder {
@@ -23,10 +24,23 @@ export interface PurchaseOrder {
   totalValue: number; // Valor Total
   status: PCStatus;
   deliveryDate: string; // Previsão de Entrega
+  _raw?: Record<string, any>;
+}
+
+export interface InventoryItem {
+  id: string; // Codigo do Produto
+  description: string; // Descrição
+  warehouse: string; // Armazém (Local)
+  quantity: number; // Quantidade
+  unitValue?: number; // Custo Unitário
+  totalValue?: number; // Custo Total
+  date: string; // Data base do relatório
+  _raw?: Record<string, any>;
 }
 
 export interface AppState {
   purchaseRequests: PurchaseRequest[];
   purchaseOrders: PurchaseOrder[];
+  inventory: InventoryItem[];
   lastBackupDate: string | null;
 }

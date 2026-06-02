@@ -1,11 +1,14 @@
 import React, { useState, useMemo } from 'react';
-import { PurchaseRequest, PurchaseOrder } from '../types';
+import { PurchaseRequest, PurchaseOrder, InventoryItem } from '../types';
 import { formatCurrency, formatDate } from '../lib/utils';
-import { Search, Filter, X } from 'lucide-react';
+import { Search, Filter, X, Download, FileText, FileSpreadsheet } from 'lucide-react';
+import * as xlsx from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface DataTableProps {
-  type: 'sc' | 'pc';
-  data: (PurchaseRequest | PurchaseOrder)[];
+  type: 'sc' | 'pc' | 'inventory';
+  data: (PurchaseRequest | PurchaseOrder | InventoryItem)[];
 }
 
 export function DataTable({ type, data }: DataTableProps) {
@@ -14,46 +17,65 @@ export function DataTable({ type, data }: DataTableProps) {
   const [filterCategory, setFilterCategory] = useState('All');
   const [sortBy, setSortBy] = useState<'date' | 'date_desc' | 'category' | 'filial'>('date_desc');
   const [selectedItem, setSelectedItem] = useState<(PurchaseRequest | PurchaseOrder) | null>(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   // Extract unique filiais
   const filiais = useMemo(() => {
     const fSet = new Set<string>();
     data.forEach(item => {
-       const key = Object.keys(item._raw || {}).find(k => k.toLowerCase() === 'filial');
+       const key = Object.keys(item._raw || {}).find(k => k.toLowerCase().trim() === 'filial');
        if (key && item._raw && item._raw[key]) fSet.add(String(item._raw[key]));
     });
     return Array.from(fSet).sort();
   }, [data]);
 
-  // Extract unique categories
-  const categories = useMemo(() => Array.from(new Set(data.map(item => item.category))), [data]);
+  // Extract unique categories (for inventory, maybe we use warehouse as category, or just product description)
+  const categories = useMemo(() => Array.from(new Set(data.map(item => {
+    if (type === 'inventory') return (item as InventoryItem).warehouse || 'Geral';
+    return (item as any).category || 'Geral';
+  }))), [data, type]);
 
   const filteredData = useMemo(() => {
     return data.filter(item => {
       // Search
-      let searchStr = type === 'sc' 
-        ? `${(item as PurchaseRequest).id} ${(item as PurchaseRequest).product} ${item.category}`.toLowerCase()
-        : `${(item as PurchaseOrder).id} ${(item as PurchaseOrder).supplier} ${item.category}`.toLowerCase();
+      let searchStr = '';
+      if (type === 'sc') {
+        searchStr = `${(item as PurchaseRequest).id} ${(item as PurchaseRequest).product} ${(item as PurchaseRequest).category}`.toLowerCase();
+      } else if (type === 'pc') {
+        searchStr = `${(item as PurchaseOrder).id} ${(item as PurchaseOrder).supplier} ${(item as PurchaseOrder).category}`.toLowerCase();
+      } else if (type === 'inventory') {
+        searchStr = `${(item as InventoryItem).id} ${(item as InventoryItem).description} ${(item as InventoryItem).warehouse}`.toLowerCase();
+      }
       
-      if (item._raw) {
-         searchStr += ' ' + Object.values(item._raw).map(val => String(val).toLowerCase()).join(' ');
+      if ((item as any)._raw) {
+         searchStr += ' ' + Object.values((item as any)._raw).map(val => String(val).toLowerCase()).join(' ');
       }
       
       const matchesSearch = searchStr.includes(searchTerm.toLowerCase());
-      const matchesCategory = filterCategory === 'All' || item.category === filterCategory;
+      
+      let itemCategory = 'Geral';
+      if (type === 'sc' || type === 'pc') itemCategory = (item as any).category;
+      if (type === 'inventory') itemCategory = (item as InventoryItem).warehouse;
+      
+      const matchesCategory = filterCategory === 'All' || itemCategory === filterCategory;
       const matchesFilial = filterFilial === 'All' || (() => {
-         const key = Object.keys(item._raw || {}).find(k => k.toLowerCase() === 'filial');
-         return key && item._raw && String(item._raw[key]) === filterFilial;
+         const key = Object.keys((item as any)._raw || {}).find(k => k.toLowerCase().trim() === 'filial');
+         return key && (item as any)._raw && String((item as any)._raw[key]) === filterFilial;
       })();
       
       return matchesSearch && matchesCategory && matchesFilial;
     }).sort((a, b) => {
-      if (sortBy === 'date') return new Date(a.date).getTime() - new Date(b.date).getTime();
-      if (sortBy === 'date_desc') return new Date(b.date).getTime() - new Date(a.date).getTime();
-      if (sortBy === 'category') return a.category.localeCompare(b.category);
+      const aDate = (a as any).date || '';
+      const bDate = (b as any).date || '';
+      const aCategory = (type === 'inventory' ? (a as InventoryItem).warehouse : (a as any).category) || '';
+      const bCategory = (type === 'inventory' ? (b as InventoryItem).warehouse : (b as any).category) || '';
+      
+      if (sortBy === 'date') return new Date(aDate).getTime() - new Date(bDate).getTime();
+      if (sortBy === 'date_desc') return new Date(bDate).getTime() - new Date(aDate).getTime();
+      if (sortBy === 'category') return aCategory.localeCompare(bCategory);
       if (sortBy === 'filial') {
-         const filialA = String(a._raw?.['Filial'] || a.category || '').toLowerCase();
-         const filialB = String(b._raw?.['Filial'] || b.category || '').toLowerCase();
+         const filialA = String((a as any)._raw?.['Filial'] || aCategory || '').toLowerCase();
+         const filialB = String((b as any)._raw?.['Filial'] || bCategory || '').toLowerCase();
          return filialA.localeCompare(filialB);
       }
       return 0;
@@ -78,20 +100,158 @@ export function DataTable({ type, data }: DataTableProps) {
     return null;
   }, [data]);
 
+  const handleExport = () => {
+    if (!filteredData || filteredData.length === 0) return;
+    
+    // Converte os dados filtrados para um formato para o Excel.
+    // Iremos usar as chaves originais do ._raw se disponível
+    const exportData = filteredData.map(item => {
+      const rawData = item._raw || {};
+      const formattedRow: any = {};
+      
+      // Aqui usamos dynamicColumns para extrair os campos que estão aparecendo na tabela
+      if (dynamicColumns) {
+        dynamicColumns.forEach(col => {
+           const value = rawData[col];
+           let displayValue: any = value;
+           
+           if (value !== undefined && value !== null) {
+              const colLower = col.toLowerCase();
+              const isDateCol = colLower.includes('dt') || colLower.includes('data') || colLower.includes('emissão') || colLower.includes('emissao') || colLower.includes('entrega') || colLower.includes('previsao');
+              
+              if (isDateCol && typeof value === 'number' && value > 10000) {
+                 displayValue = new Date(Math.round((value - 25569) * 86400 * 1000)).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+              }
+           } else {
+             displayValue = ''; // Preenche com vazio se for undefined
+           }
+           
+           formattedRow[col] = displayValue;
+        });
+      } else {
+        // Fallback case sem _raw
+        Object.assign(formattedRow, item);
+      }
+      return formattedRow;
+    });
+
+    const ws = xlsx.utils.json_to_sheet(exportData);
+    const wb = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(wb, ws, "Resultados");
+    
+    const fileName = `Exportacao_${type.toUpperCase()}_${new Date().getTime()}.xlsx`;
+    xlsx.writeFile(wb, fileName);
+    setShowExportMenu(false);
+  };
+
+  const handleExportPDF = () => {
+    if (!filteredData || filteredData.length === 0) return;
+
+    const doc = new jsPDF('landscape');
+    const title = `Relatório de ${type === 'sc' ? 'Solicitações de Compra' : 'Pedidos de Compra'}`;
+    const subtitle = `Total de Registros: ${filteredData.length} | Gerado em: ${new Date().toLocaleString('pt-BR')}`;
+
+    doc.setFontSize(16);
+    doc.text(title, 14, 15);
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(subtitle, 14, 22);
+
+    const exportData = filteredData.map(item => {
+      const rawData = item._raw || {};
+      const formattedRow: any = {};
+      
+      if (dynamicColumns) {
+        dynamicColumns.forEach(col => {
+           const value = rawData[col];
+           let displayValue: any = value;
+           
+           if (value !== undefined && value !== null) {
+              const colLower = col.toLowerCase();
+              const isDateCol = colLower.includes('dt') || colLower.includes('data') || colLower.includes('emissão') || colLower.includes('emissao') || colLower.includes('entrega') || colLower.includes('previsao');
+              
+              if (isDateCol && typeof value === 'number' && value > 10000) {
+                 displayValue = new Date(Math.round((value - 25569) * 86400 * 1000)).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+              }
+           } else {
+             displayValue = ''; 
+           }
+           
+           formattedRow[col] = String(displayValue);
+        });
+      } else {
+        Object.assign(formattedRow, item);
+      }
+      return formattedRow;
+    });
+
+    if (dynamicColumns && dynamicColumns.length > 0) {
+      const head = [dynamicColumns];
+      const body = exportData.map(row => dynamicColumns.map(col => row[col] || '-'));
+      
+      autoTable(doc, {
+        head: head,
+        body: body,
+        startY: 28,
+        theme: 'striped',
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [79, 70, 229] },
+        horizontalPageBreak: true,
+      });
+    }
+
+    doc.save(`Relatorio_${type.toUpperCase()}_${new Date().getTime()}.pdf`);
+    setShowExportMenu(false);
+  };
+
   return (
     <div className="bg-neutral-900 rounded-xl border border-neutral-800 shadow-sm overflow-hidden flex flex-col h-full relative">
       {/* Header & Filters */}
       <div className="p-4 border-b border-neutral-800 bg-neutral-950 space-y-4">
         <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 w-5 h-5" />
-            <input
-              type="text"
-              placeholder={`Pesquisar ${type === 'sc' ? 'solicitações...' : 'pedidos...'}`}
-              className="w-full pl-10 pr-4 py-2 bg-neutral-900 border border-neutral-800 text-neutral-200 rounded-lg outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 placeholder-neutral-500"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+          <div className="relative flex-1 max-w-md flex flex-row items-center gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 w-5 h-5" />
+              <input
+                type="text"
+                placeholder={`Pesquisar ${type === 'sc' ? 'solicitações...' : 'pedidos...'}`}
+                className="w-full pl-10 pr-4 py-2 bg-neutral-900 border border-neutral-800 text-neutral-200 rounded-lg outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 placeholder-neutral-500"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            
+            <div className="relative">
+              <button
+                 onClick={() => setShowExportMenu(!showExportMenu)}
+                 className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition shrink-0"
+                 title="Exportar Relatório"
+              >
+                 <Download className="w-4 h-4" />
+                 <span className="hidden sm:inline text-sm font-medium">Exportar Relatório</span>
+              </button>
+
+              {showExportMenu && (
+                <div className="absolute right-0 mt-2 w-48 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl z-20 top-full">
+                  <div className="py-1">
+                    <button
+                      onClick={handleExportPDF}
+                      className="w-full text-left px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-700 hover:text-white flex items-center gap-2 transition"
+                    >
+                      <FileText className="w-4 h-4 text-rose-500" />
+                      Relatório em PDF
+                    </button>
+                    <button
+                      onClick={handleExport}
+                      className="w-full text-left px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-700 hover:text-white flex items-center gap-2 transition"
+                    >
+                      <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
+                      Planilha Excel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -136,59 +296,161 @@ export function DataTable({ type, data }: DataTableProps) {
 
       {/* Table */}
       <div className="flex-1 overflow-auto">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-neutral-800/50 border-b border-neutral-800 text-neutral-400 text-sm">
-              {dynamicColumns ? (
-                dynamicColumns.map((col, idx) => (
-                  <th key={idx} className="py-3 px-4 font-semibold whitespace-nowrap">{col}</th>
-                ))
-              ) : null}
-            </tr>
-          </thead>
-          <tbody className="align-top">
-             {filteredData.length === 0 ? (
-                <tr>
-                   <td colSpan={dynamicColumns ? dynamicColumns.length : 1} className="py-8 text-center text-neutral-500">
-                      Nenhum registro encontrado.
-                   </td>
-                </tr>
-             ) : (
-                filteredData.map((item, index) => (
-                  <tr 
-                    key={index} 
-                    className="border-b border-neutral-800/50 hover:bg-neutral-800/30 transition-colors cursor-pointer"
-                    onClick={() => setSelectedItem(item)}
-                  >
-                    {dynamicColumns ? (
-                      dynamicColumns.map((col, idx) => {
-                         const value = item._raw?.[col];
-                         let displayValue = '-';
-                         
-                         if (value !== undefined && value !== null) {
-                            const colLower = col.toLowerCase();
-                            const isDateCol = colLower.includes('dt') || colLower.includes('data') || colLower.includes('emissão') || colLower.includes('emissao') || colLower.includes('entrega') || colLower.includes('previsao');
-                            
-                            if (isDateCol && typeof value === 'number' && value > 10000) {
-                               const date = new Date(Math.round((value - 25569) * 86400 * 1000));
-                               displayValue = date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
-                            } else {
-                               displayValue = String(value);
-                            }
-                         }
+        {type === 'inventory' ? (
+           <div className="flex flex-col space-y-8 p-1">
+             {Array.from(new Set(filteredData.map(item => {
+                const getRawFieldValue = (item: any, fieldName: string) => {
+                  if (!item || !item._raw) return '';
+                  const key = Object.keys(item._raw).find(k => k.toLowerCase().trim() === fieldName.toLowerCase().trim());
+                  return key ? String(item._raw[key] || '') : '';
+                };
+                const filial = getRawFieldValue(item, 'filial') || 'Sem Filial';
+                const tipo = getRawFieldValue(item, 'tp') || getRawFieldValue(item, 'tipo') || 'Geral';
+                return `${filial} - ${tipo}`;
+             }))).sort().map(groupKey => {
+                const getRawFieldValue = (item: any, fieldName: string) => {
+                  if (!item || !item._raw) return '';
+                  const key = Object.keys(item._raw).find(k => k.toLowerCase().trim() === fieldName.toLowerCase().trim());
+                  return key ? String(item._raw[key] || '') : '';
+                };
+                const filialData = filteredData.filter(item => {
+                   const filial = getRawFieldValue(item, 'filial') || 'Sem Filial';
+                   const tipo = getRawFieldValue(item, 'tp') || getRawFieldValue(item, 'tipo') || 'Geral';
+                   return `${filial} - ${tipo}` === groupKey;
+                });
+                
+                if (filialData.length === 0) return null;
+                
+                const [filialPart, tipoPart] = groupKey.split(' - ');
+                
+                return (
+                  <div key={groupKey} className="bg-neutral-900 border border-neutral-700 w-full overflow-x-auto">
+                    <div className="bg-neutral-800 text-cyan-400 font-bold px-4 py-3 border-b border-neutral-700 flex justify-between items-center whitespace-nowrap">
+                       <span className="sticky left-4 uppercase tracking-wide">
+                          F I L I A L : {filialPart} <span className="text-neutral-500 mx-2">|</span> T I P O : {tipoPart}
+                       </span>
+                       <span className="sticky right-4 text-xs font-normal text-neutral-400 bg-neutral-900 px-2 py-1 rounded">
+                         {filialData.length} Itens
+                       </span>
+                    </div>
+                    <table className="w-full text-left border-collapse min-w-max">
+                      <thead>
+                        <tr className="bg-neutral-950/20 border-b border-neutral-800 text-neutral-400 text-[11px] uppercase tracking-wider">
+                          {dynamicColumns ? (
+                            dynamicColumns.map((col, idx) => (
+                              <th key={idx} className="py-2.5 px-4 font-semibold">{col}</th>
+                            ))
+                          ) : null}
+                        </tr>
+                      </thead>
+                      <tbody className="align-middle">
+                        {filialData.map((item, index) => (
+                          <tr 
+                            key={index} 
+                            className="border-b border-neutral-800/50 hover:bg-neutral-800/50 transition-colors cursor-pointer"
+                            onClick={() => setSelectedItem(item)}
+                          >
+                            {dynamicColumns ? (
+                              dynamicColumns.map((col, idx) => {
+                                 const value = item._raw?.[col];
+                                 let displayValue = '-';
+                                 
+                                 if (value !== undefined && value !== null) {
+                                    const colLower = col.toLowerCase();
+                                    const isDateCol = colLower.includes('dt') || colLower.includes('data') || colLower.includes('emissão') || colLower.includes('emissao') || colLower.includes('entrega') || colLower.includes('previsao');
+                                    
+                                    if (isDateCol && typeof value === 'number' && value > 10000) {
+                                       const date = new Date(Math.round((value - 25569) * 86400 * 1000));
+                                       displayValue = date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+                                    } else if (typeof value === 'number' && !isDateCol && (colLower.includes('saldo') || colLower.includes('valor') || colLower.includes('custo') || colLower.includes('ponto') || colLower.includes('meses') || colLower.includes('med.'))) {
+                                       // Format numeric properly for amounts
+                                       if (colLower.includes('valor') || colLower.includes('custo') || colLower.includes('empenho')) {
+                                          displayValue = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+                                       } else {
+                                          displayValue = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 3 }).format(value);
+                                       }
+                                    } else {
+                                       displayValue = String(value);
+                                    }
+                                 }
 
-                         return (
-                           <td key={idx} className="py-3 px-4 text-sm text-neutral-300 whitespace-nowrap">
-                             {displayValue}
-                           </td>
-                         );
-                      })
-                    ) : null}
-                  </tr>
-                ))
+                                 return (
+                                   <td key={idx} className="py-2.5 px-4 text-xs text-neutral-300">
+                                     {displayValue}
+                                   </td>
+                                 );
+                              })
+                            ) : null}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+             })}
+             {filteredData.length === 0 && (
+                <div className="py-8 text-center text-neutral-500 w-full">
+                    Nenhum registro encontrado.
+                </div>
              )}
-          </tbody>
-        </table>
+           </div>
+        ) : (
+           <table className="w-full text-left border-collapse">
+             <thead>
+               <tr className="bg-neutral-800/50 border-b border-neutral-800 text-neutral-400 text-sm">
+                 {dynamicColumns ? (
+                   dynamicColumns.map((col, idx) => (
+                     <th key={idx} className="py-3 px-4 font-semibold whitespace-nowrap">{col}</th>
+                   ))
+                 ) : null}
+               </tr>
+             </thead>
+             <tbody className="align-middle">
+                {filteredData.length === 0 ? (
+                   <tr>
+                      <td colSpan={dynamicColumns ? dynamicColumns.length : 1} className="py-8 text-center text-neutral-500">
+                         Nenhum registro encontrado.
+                      </td>
+                   </tr>
+                ) : (
+                   filteredData.map((item, index) => (
+                     <tr 
+                       key={index} 
+                       className="border-b border-neutral-800/50 hover:bg-neutral-800/30 transition-colors cursor-pointer"
+                       onClick={() => setSelectedItem(item)}
+                     >
+                       {dynamicColumns ? (
+                         dynamicColumns.map((col, idx) => {
+                            const value = item._raw?.[col];
+                            let displayValue = '-';
+                            
+                            if (value !== undefined && value !== null) {
+                               const colLower = col.toLowerCase();
+                               const isDateCol = colLower.includes('dt') || colLower.includes('data') || colLower.includes('emissão') || colLower.includes('emissao') || colLower.includes('entrega') || colLower.includes('previsao');
+                               
+                               if (isDateCol && typeof value === 'number' && value > 10000) {
+                                  const date = new Date(Math.round((value - 25569) * 86400 * 1000));
+                                  displayValue = date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+                               } else if (typeof value === 'number' && !isDateCol && (colLower.includes('valor') || colLower.includes('custo'))) {
+                                  displayValue = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+                               } else {
+                                  displayValue = String(value);
+                               }
+                            }
+
+                            return (
+                              <td key={idx} className="py-2.5 px-4 text-xs text-neutral-300 whitespace-nowrap">
+                                {displayValue}
+                              </td>
+                            );
+                         })
+                       ) : null}
+                     </tr>
+                   ))
+                )}
+             </tbody>
+           </table>
+        )}
       </div>
       <div className="p-4 border-t border-neutral-800 bg-neutral-950 text-xs text-neutral-500 text-right">
         Total Exibido: {filteredData.length}

@@ -40,6 +40,7 @@ export function useStore() {
   useEffect(() => {
     let unsubscribeRequests = () => {};
     let unsubscribeOrders = () => {};
+    let unsubscribeInventory = () => {};
 
     try {
       unsubscribeRequests = onSnapshot(collection(db, 'purchaseRequests'), (snapshot) => {
@@ -59,6 +60,15 @@ export function useStore() {
       }, (error) => {
         console.error('Error listening to orders:', error);
       });
+
+      unsubscribeInventory = onSnapshot(collection(db, 'inventory'), (snapshot) => {
+        const inv = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+        if (inv.length > 0 || snapshot.metadata.fromCache === false) {
+           setState(prev => ({ ...prev, inventory: inv }));
+        }
+      }, (error) => {
+        console.error('Error listening to inventory:', error);
+      });
     } catch (e) {
       console.error('Failed to attach listeners', e);
     }
@@ -66,6 +76,7 @@ export function useStore() {
     return () => {
       unsubscribeRequests();
       unsubscribeOrders();
+      unsubscribeInventory();
     };
   }, []);
 
@@ -148,6 +159,15 @@ export function useStore() {
             count = 0;
           }
         }
+        for (const inv of (state.inventory || [])) {
+          batch.delete(doc(db, 'inventory', sanitizeId(inv.id)));
+          count++;
+          if (count === CHUNK_SIZE) {
+            await batch.commit();
+            batch = writeBatch(db);
+            count = 0;
+          }
+        }
         if (count > 0) {
           await batch.commit();
         }
@@ -213,6 +233,23 @@ export function useStore() {
     }
   };
 
+  const addInventory = async (items: any[]) => {
+    setIsSaved(false);
+    setState(prev => {
+      // In inventory, maybe we just replace or update. Let's merge by id for now.
+      const existingMap = new Map((prev.inventory || []).map((i: any) => [i.id, i]));
+      items.forEach(i => existingMap.set(i.id, i));
+      return { ...prev, inventory: Array.from(existingMap.values()) };
+    });
+    try {
+      await executeInBatches(items, 'inventory');
+      setIsSaved(true);
+    } catch (e) {
+      console.error('Error adding inventory', e);
+      throw e;
+    }
+  };
+
   return {
     state,
     isSaved,
@@ -223,6 +260,7 @@ export function useStore() {
     setPurchaseRequests,
     setPurchaseOrders,
     addPurchaseRequests,
-    addPurchaseOrders
+    addPurchaseOrders,
+    addInventory
   };
 }

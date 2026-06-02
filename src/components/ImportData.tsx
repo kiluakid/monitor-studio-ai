@@ -1,74 +1,49 @@
 import React, { useState, useRef } from 'react';
 import * as xlsx from 'xlsx';
-import { Upload, FileSpreadsheet, CheckCircle2, AlertTriangle } from 'lucide-react';
-import { PurchaseRequest, PurchaseOrder, UrgencyLevel, SCStatus, PCStatus } from '../types';
+import { Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, PackageSearch } from 'lucide-react';
+import { PurchaseRequest, PurchaseOrder, InventoryItem, UrgencyLevel, SCStatus, PCStatus } from '../types';
 
 interface ImportDataProps {
   onImportSC: (data: PurchaseRequest[]) => void;
   onImportPC: (data: PurchaseOrder[]) => void;
+  onImportInventory: (data: InventoryItem[]) => void;
 }
 
-export function ImportData({ onImportSC, onImportPC }: ImportDataProps) {
+export function ImportData({ onImportSC, onImportPC, onImportInventory }: ImportDataProps) {
   const [dragActiveSC, setDragActiveSC] = useState(false);
   const [dragActivePC, setDragActivePC] = useState(false);
-  const [importStatus, setImportStatus] = useState<{ type: 'sc' | 'pc'; count: number } | null>(null);
+  const [dragActiveInv, setDragActiveInv] = useState(false);
+  const [importStatus, setImportStatus] = useState<{ type: 'sc' | 'pc' | 'inventory'; count: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const inputRefSC = useRef<HTMLInputElement>(null);
   const inputRefPC = useRef<HTMLInputElement>(null);
+  const inputRefInv = useRef<HTMLInputElement>(null);
 
-  const handleDragSC = (e: React.DragEvent) => {
+  const handleDrag = (e: React.DragEvent, setActive: (v: boolean) => void) => {
     e.preventDefault();
     e.stopPropagation();
     if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActiveSC(true);
+      setActive(true);
     } else if (e.type === "dragleave") {
-      setDragActiveSC(false);
+      setActive(false);
     }
   };
 
-  const handleDragPC = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent, setActive: (v: boolean) => void, type: 'sc' | 'pc' | 'inventory') => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActivePC(true);
-    } else if (e.type === "dragleave") {
-      setDragActivePC(false);
-    }
-  };
-
-  const handleDropSC = async (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActiveSC(false);
+    setActive(false);
     setError(null);
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      await processFile(e.dataTransfer.files[0], 'sc');
+      await processFile(e.dataTransfer.files[0], type);
     }
   };
 
-  const handleDropPC = async (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActivePC(false);
-    setError(null);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      await processFile(e.dataTransfer.files[0], 'pc');
-    }
-  };
-
-  const handleChangeSC = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = async (e: React.ChangeEvent<HTMLInputElement>, type: 'sc' | 'pc' | 'inventory') => {
     e.preventDefault();
     setError(null);
     if (e.target.files && e.target.files[0]) {
-      await processFile(e.target.files[0], 'sc');
-    }
-  };
-
-  const handleChangePC = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    e.preventDefault();
-    setError(null);
-    if (e.target.files && e.target.files[0]) {
-      await processFile(e.target.files[0], 'pc');
+      await processFile(e.target.files[0], type);
     }
   };
 
@@ -112,7 +87,7 @@ export function ImportData({ onImportSC, onImportPC }: ImportDataProps) {
     return null;
   };
 
-  const processFile = async (file: File, targetType: 'sc' | 'pc') => {
+  const processFile = async (file: File, targetType: 'sc' | 'pc' | 'inventory') => {
     try {
       const data = await file.arrayBuffer();
       const workbook = xlsx.read(data, { type: 'array' });
@@ -128,7 +103,7 @@ export function ImportData({ onImportSC, onImportPC }: ImportDataProps) {
         const row = rawData[i];
         if (row && Array.isArray(row)) {
           const rowText = row.join(' ').toLowerCase();
-          if (rowText.includes('filial') || rowText.includes('numero da sc') || rowText.includes('solicitacao') || rowText.includes('produto') || rowText.includes('fornecedor') || rowText.includes('num. pc') || rowText.includes('pedido')) {
+          if (rowText.includes('filial') || rowText.includes('numero da sc') || rowText.includes('solicitacao') || rowText.includes('produto') || rowText.includes('fornecedor') || rowText.includes('num. pc') || rowText.includes('pedido') || rowText.includes('armazem') || rowText.includes('local') || rowText.includes('codigo') || rowText.includes('cód')) {
             headerRowIndex = i;
             break;
           }
@@ -154,7 +129,20 @@ export function ImportData({ onImportSC, onImportPC }: ImportDataProps) {
         throw new Error('Planilha vazia ou formato inválido.');
       }
       
-      if (targetType === 'pc') {
+      if (targetType === 'inventory') {
+        const mappedInventory: InventoryItem[] = json.map((row: any) => ({
+          id: String(row['Codigo'] || row['Cód'] || row['Produto'] || row['ID'] || Math.random().toString(36).substring(7)),
+          description: row['Descricao'] || row['Descrição'] || 'Produto não especificado',
+          warehouse: row['Armazem'] || row['Armazém'] || row['Local'] || '01',
+          quantity: parseFloat(row['Quantidade'] || row['Qtd'] || '0') || 0,
+          unitValue: parseFloat(row['Custo Unitario'] || row['Custo'] || row['Valor Unitario']),
+          totalValue: parseFloat(row['Custo Total'] || row['Valor Total']),
+          date: new Date().toISOString(),
+          _raw: row,
+        }));
+        await onImportInventory(mappedInventory);
+        setImportStatus({ type: 'inventory', count: mappedInventory.length });
+      } else if (targetType === 'pc') {
         const mappedOrders: PurchaseOrder[] = json.map((row: any) => ({
           id: String(row['Num. PC'] || row['Pedido'] || row['ID'] || Math.random().toString(36).substring(7)),
           sc_id: String(row['Num. SC'] || row['Sol. Compra'] || row['SC'] || ''),
@@ -195,7 +183,7 @@ export function ImportData({ onImportSC, onImportPC }: ImportDataProps) {
         <p className="text-neutral-400">Selecione o tipo de arquivo que você deseja importar.</p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid md:grid-cols-3 gap-6">
         {/* Import SC */}
         <div className="bg-neutral-900 rounded-2xl border border-neutral-800 shadow-sm overflow-hidden flex flex-col">
           <div className="p-6 border-b border-neutral-800 bg-blue-900/20">
@@ -206,10 +194,10 @@ export function ImportData({ onImportSC, onImportPC }: ImportDataProps) {
             <div
               className={`flex-grow border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer flex flex-col items-center justify-center
                 ${dragActiveSC ? 'border-blue-500 bg-blue-900/10' : 'border-neutral-700 hover:border-neutral-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-neutral-900'}`}
-              onDragEnter={handleDragSC}
-              onDragLeave={handleDragSC}
-              onDragOver={handleDragSC}
-              onDrop={handleDropSC}
+              onDragEnter={(e) => handleDrag(e, setDragActiveSC)}
+              onDragLeave={(e) => handleDrag(e, setDragActiveSC)}
+              onDragOver={(e) => handleDrag(e, setDragActiveSC)}
+              onDrop={(e) => handleDrop(e, setDragActiveSC, 'sc')}
               onClick={() => inputRefSC.current?.click()}
               role="button"
               tabIndex={0}
@@ -224,7 +212,7 @@ export function ImportData({ onImportSC, onImportPC }: ImportDataProps) {
                 type="file"
                 className="hidden"
                 accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
-                onChange={handleChangeSC}
+                onChange={(e) => handleChange(e, 'sc')}
               />
               <div className="mx-auto flex justify-center mb-4 text-neutral-500">
                 <FileSpreadsheet className="w-12 h-12" />
@@ -249,10 +237,10 @@ export function ImportData({ onImportSC, onImportPC }: ImportDataProps) {
             <div
               className={`flex-grow border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer flex flex-col items-center justify-center
                 ${dragActivePC ? 'border-emerald-500 bg-emerald-900/10' : 'border-neutral-700 hover:border-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-neutral-900'}`}
-              onDragEnter={handleDragPC}
-              onDragLeave={handleDragPC}
-              onDragOver={handleDragPC}
-              onDrop={handleDropPC}
+              onDragEnter={(e) => handleDrag(e, setDragActivePC)}
+              onDragLeave={(e) => handleDrag(e, setDragActivePC)}
+              onDragOver={(e) => handleDrag(e, setDragActivePC)}
+              onDrop={(e) => handleDrop(e, setDragActivePC, 'pc')}
               onClick={() => inputRefPC.current?.click()}
               role="button"
               tabIndex={0}
@@ -267,13 +255,56 @@ export function ImportData({ onImportSC, onImportPC }: ImportDataProps) {
                 type="file"
                 className="hidden"
                 accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
-                onChange={handleChangePC}
+                onChange={(e) => handleChange(e, 'pc')}
               />
               <div className="mx-auto flex justify-center mb-4 text-neutral-500">
                 <Upload className="w-12 h-12" />
               </div>
               <p className="text-base font-medium text-neutral-300 mb-1">
                 Clique ou arraste a planilha MATA121 aqui
+              </p>
+              <p className="text-xs text-neutral-500">
+                Formatos suportados: CSV, XLSX, XLS
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Import MATR290 */}
+        <div className="bg-neutral-900 rounded-2xl border border-neutral-800 shadow-sm overflow-hidden flex flex-col">
+          <div className="p-6 border-b border-neutral-800 bg-purple-900/20">
+            <h3 className="text-xl font-bold text-purple-400 mb-1">MATR290</h3>
+            <p className="text-purple-500/70 text-sm">Análise de Estoque</p>
+          </div>
+          <div className="p-6 flex-grow flex flex-col">
+            <div
+              className={`flex-grow border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer flex flex-col items-center justify-center
+                ${dragActiveInv ? 'border-purple-500 bg-purple-900/10' : 'border-neutral-700 hover:border-neutral-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-neutral-900'}`}
+              onDragEnter={(e) => handleDrag(e, setDragActiveInv)}
+              onDragLeave={(e) => handleDrag(e, setDragActiveInv)}
+              onDragOver={(e) => handleDrag(e, setDragActiveInv)}
+              onDrop={(e) => handleDrop(e, setDragActiveInv, 'inventory')}
+              onClick={() => inputRefInv.current?.click()}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  inputRefInv.current?.click();
+                }
+              }}
+            >
+              <input
+                ref={inputRefInv}
+                type="file"
+                className="hidden"
+                accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
+                onChange={(e) => handleChange(e, 'inventory')}
+              />
+              <div className="mx-auto flex justify-center mb-4 text-neutral-500">
+                <PackageSearch className="w-12 h-12" />
+              </div>
+              <p className="text-base font-medium text-neutral-300 mb-1">
+                Clique ou arraste o MATR290 aqui
               </p>
               <p className="text-xs text-neutral-500">
                 Formatos suportados: CSV, XLSX, XLS
