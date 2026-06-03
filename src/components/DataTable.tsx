@@ -110,7 +110,7 @@ export function DataTable({ type, data }: DataTableProps) {
         if (item._raw) {
           Object.keys(item._raw).forEach(k => {
              const keyLower = k.trim().toLowerCase();
-             if (!keyLower.includes('empty') && !keyLower.includes('listagem do browse') && !k.startsWith('_') && keyLower !== '') {
+             if (!keyLower.includes('empty') && !keyLower.includes('listagem do browse') && !k.startsWith('_') && keyLower !== '' && keyLower !== 'key') {
                 keys.add(k.trim());
              }
           });
@@ -557,7 +557,7 @@ export function DataTable({ type, data }: DataTableProps) {
              <div className="p-6 overflow-y-auto w-full grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
                 {selectedItem._raw && Object.entries(selectedItem._raw).filter(([key, val]) => {
                     const keyLower = key.trim().toLowerCase();
-                    return !keyLower.includes('empty') && !keyLower.includes('listagem do browse') && val !== undefined && val !== null && val !== '';
+                    return !keyLower.includes('empty') && !keyLower.includes('listagem do browse') && keyLower !== 'key' && val !== undefined && val !== null && val !== '';
                 }).map(([key, val], idx) => {
                    let displayVal = String(val);
                    const isDateCol = key.toLowerCase().includes('dt') || key.toLowerCase().includes('data') || key.toLowerCase().includes('emissão') || key.toLowerCase().includes('emissao') || key.toLowerCase().includes('entrega') || key.toLowerCase().includes('previsao');
