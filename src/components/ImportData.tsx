@@ -165,8 +165,6 @@ export function ImportData({ onImportSC, onImportPC, onImportInventory }: Import
                const tMatch = rowStrUpper.match(/TIPO\s*:\s*([^\|]+)/);
                if (tMatch) currentTipo = tMatch[1].trim();
                
-               cleanHeaders = []; // Reset headers for the new block
-               
                continue; // skip this row as it's a block separator
             }
             
@@ -180,8 +178,7 @@ export function ImportData({ onImportSC, onImportPC, onImportInventory }: Import
             }
             
             // We need at least 3 known keywords to confidently consider this a data header row
-            // AND we only want to set headers ONCE per block, so avoid re-triggering if we already have headers unless the block changes.
-            if (matchCount >= 3 && row.length >= 4 && cleanHeaders.length === 0) {
+            if (matchCount >= 3 && row.length >= 4) {
                 // update current headers
                 cleanHeaders = row.map((h: any) => typeof h === 'string' ? h.replace(/^["'\s]+|["'\s]+$/g, '').trim() : String(h || '').trim());
                 continue; // skip mapping this row as data
