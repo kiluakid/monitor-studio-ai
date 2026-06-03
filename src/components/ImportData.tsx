@@ -164,18 +164,24 @@ export function ImportData({ onImportSC, onImportPC, onImportInventory }: Import
                
                const tMatch = rowStrUpper.match(/TIPO\s*:\s*([^\|]+)/);
                if (tMatch) currentTipo = tMatch[1].trim();
+               
+               cleanHeaders = []; // Reset headers for the new block
+               
                continue; // skip this row as it's a block separator
             }
             
             // Check if it's a header row
             let matchCount = 0;
-            const rowLower = rowStr.toLowerCase();
+            const cellsLower = row.map(r => String(r || '').toLowerCase().trim());
             for (const keyword of knownKeywords) {
-               if (rowLower.includes(keyword)) matchCount++;
+               if (cellsLower.some(cell => cell === keyword || cell.includes(keyword) && cell.length < keyword.length + 5)) {
+                   matchCount++;
+               }
             }
             
             // We need at least 3 known keywords to confidently consider this a data header row
-            if (matchCount >= 3 && row.length >= 4) {
+            // AND we only want to set headers ONCE per block, so avoid re-triggering if we already have headers unless the block changes.
+            if (matchCount >= 3 && row.length >= 4 && cleanHeaders.length === 0) {
                 // update current headers
                 cleanHeaders = row.map((h: any) => typeof h === 'string' ? h.replace(/^["'\s]+|["'\s]+$/g, '').trim() : String(h || '').trim());
                 continue; // skip mapping this row as data
@@ -258,34 +264,27 @@ export function ImportData({ onImportSC, onImportPC, onImportInventory }: Import
       };
       
       if (targetType === 'inventory') {
-        let mappedInventory: InventoryItem[] = json.map((row: any) => ({
-          id: String(getVal(row, ['Codigo', 'Cód', 'Código', 'Produto', 'ID']) || Math.random().toString(36).substring(7)),
-          description: String(getVal(row, ['Descricao', 'Descrição', 'Desc.']) || 'Produto não especificado'),
-          warehouse: String(getVal(row, ['Armazem', 'Armazém', 'Local', 'Filial']) || '01'),
-          quantity: parseFloat(String(getVal(row, ['Saldo Atual', 'Quantidade', 'Qtd', 'Saldo'])) || '0') || 0,
-          unitValue: parseFloat(String(getVal(row, ['Custo Unitario', 'Custo Unitário', 'Custo', 'Valor Unitario'])) || '0') || 0,
-          totalValue: parseFloat(String(getVal(row, ['Custo Total', 'Valor Total', 'Valor', 'Empenho'])) || '0') || 0,
-          date: new Date().toISOString(),
-          _raw: row,
-        }));
+        let mappedInventory: InventoryItem[] = json.map((row: any) => {
+          const filial = String(getVal(row, ['Armazem', 'Armazém', 'Local', 'Filial']) || '01');
+          const codigo = String(getVal(row, ['Codigo', 'Cód', 'Código', 'Produto', 'ID']) || Math.random().toString(36).substring(7));
+          return {
+            id: `${filial}_${codigo}`,
+            description: String(getVal(row, ['Descricao', 'Descrição', 'Desc.']) || 'Produto não especificado'),
+            warehouse: filial,
+            quantity: parseFloat(String(getVal(row, ['Saldo Atual', 'Quantidade', 'Qtd', 'Saldo'])) || '0') || 0,
+            unitValue: parseFloat(String(getVal(row, ['Custo Unitario', 'Custo Unitário', 'Custo', 'Valor Unitario'])) || '0') || 0,
+            totalValue: parseFloat(String(getVal(row, ['Custo Total', 'Valor Total', 'Valor', 'Empenho'])) || '0') || 0,
+            date: new Date().toISOString(),
+            _raw: row,
+          };
+        });
         
-        // Filter to only bring products that have Ponto Pedido > 0 and (Saldo <= Ponto Pedido)
+        // Filter to only bring products that have Ponto Pedido > 0
         mappedInventory = mappedInventory.filter(item => {
            const ppRaw = getVal(item._raw, ['Ponto Pedido', 'Ponto de pedido']);
            if (ppRaw !== null && ppRaw !== undefined && ppRaw !== '') {
              const ppVal = typeof ppRaw === 'number' ? ppRaw : parseFloat(String(ppRaw).replace(/\./g, '').replace(',', '.'));
-             
-             if (!isNaN(ppVal) && ppVal > 0) {
-                 const saldoRaw = getVal(item._raw, ['Saldo Atual', 'Quantidade', 'Qtd', 'Saldo']);
-                 let saldoVal = 0;
-                 if (saldoRaw !== null && saldoRaw !== undefined && saldoRaw !== '') {
-                     saldoVal = typeof saldoRaw === 'number' ? saldoRaw : parseFloat(String(saldoRaw).replace(/\./g, '').replace(',', '.'));
-                 }
-                 if (isNaN(saldoVal)) saldoVal = 0;
-                 
-                 // If balance is below or equal to reorder point, it is "em ponto de pedido"
-                 return saldoVal <= ppVal;
-             }
+             return !isNaN(ppVal) && ppVal > 0;
            }
            return false;
         });
