@@ -144,7 +144,7 @@ export function ImportData({ onImportSC, onImportPC, onImportInventory }: Import
              const rowText = row.join(' ').toLowerCase().replace(/"/g, '');
              
              // Count how many known header keywords are in this row
-             const knownKeywords = ['filial', 'codigo', 'cód', 'descricao', 'descrição', 'produto', 'saldo', 'empenho', 'armazem', 'local', 'fornecedor', 'numero da sc', 'num. pc', 'pedido', 'solicitacao', 'um', 'grupo', 'classe'];
+             const knownKeywords = ['filial', 'codigo', 'cód', 'descricao', 'descrição', 'produto', 'saldo', 'empenho', 'armazem', 'local', 'fornecedor', 'numero da sc', 'num. pc', 'pedido', 'solicitacao', 'um', 'grupo', 'classe', 'ponto pedido', 'med. consumo'];
              
              let matchCount = 0;
              for (const keyword of knownKeywords) {
@@ -156,6 +156,7 @@ export function ImportData({ onImportSC, onImportPC, onImportInventory }: Import
              // We need at least 3 known keywords to confidently consider this a data header row (avoiding cover sheets with a simple "Filial" title)
              if (matchCount >= 3 && row.length >= 4) {
                   headerRowIndex = i;
+                   bestRowIndex = i; // Save this as absolute best
                   break;
              }
            }
@@ -234,7 +235,7 @@ export function ImportData({ onImportSC, onImportPC, onImportInventory }: Import
       };
       
       if (targetType === 'inventory') {
-        const mappedInventory: InventoryItem[] = json.map((row: any) => ({
+        let mappedInventory: InventoryItem[] = json.map((row: any) => ({
           id: String(getVal(row, ['Codigo', 'Cód', 'Código', 'Produto', 'ID']) || Math.random().toString(36).substring(7)),
           description: String(getVal(row, ['Descricao', 'Descrição', 'Desc.']) || 'Produto não especificado'),
           warehouse: String(getVal(row, ['Armazem', 'Armazém', 'Local', 'Filial']) || '01'),
@@ -244,6 +245,17 @@ export function ImportData({ onImportSC, onImportPC, onImportInventory }: Import
           date: new Date().toISOString(),
           _raw: row,
         }));
+        
+        // Filter to only bring products that have Ponto Pedido
+        mappedInventory = mappedInventory.filter(item => {
+           const ppRaw = getVal(item._raw, ['Ponto Pedido', 'Ponto de pedido']);
+           if (ppRaw !== null && ppRaw !== undefined) {
+             const ppVal = parseFloat(String(ppRaw).replace(',', '.'));
+             return !isNaN(ppVal) && ppVal > 0;
+           }
+           return false;
+        });
+        
         await onImportInventory(mappedInventory);
         setImportStatus({ type: 'inventory', count: mappedInventory.length });
       } else if (targetType === 'pc') {

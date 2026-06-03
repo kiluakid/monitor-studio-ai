@@ -150,6 +150,31 @@ export function DataTable({ type, data }: DataTableProps) {
     return null;
   }, [data, type]);
 
+  const inventoryGroups = useMemo(() => {
+    if (type !== 'inventory' || !filteredData || filteredData.length === 0) return [];
+    
+    const groupsMap = new Map<string, any[]>();
+    
+    for (const item of filteredData) {
+        let filial = 'Sem Filial';
+        let tipo = 'Geral';
+        if (item._raw) {
+            const keys = Object.keys(item._raw);
+            const filialKey = keys.find(k => { const l = k.toLowerCase().trim(); return l === 'filial' || l === 'armazem' || l === 'armazém' || l === 'local'; });
+            const tipoKey = keys.find(k => { const l = k.toLowerCase().trim(); return l === 'tp' || l === 'tipo' || l === 'grupo'; });
+            if (filialKey && item._raw[filialKey]) filial = String(item._raw[filialKey]).trim();
+            if (tipoKey && item._raw[tipoKey]) tipo = String(item._raw[tipoKey]).trim();
+        }
+        const key = `${filial} - ${tipo}`;
+        if (!groupsMap.has(key)) {
+            groupsMap.set(key, []);
+        }
+        groupsMap.get(key)!.push(item);
+    }
+    
+    return Array.from(groupsMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [filteredData, type]);
+
   const handleExport = () => {
     if (!filteredData || filteredData.length === 0) return;
     
@@ -348,38 +373,7 @@ export function DataTable({ type, data }: DataTableProps) {
       <div className="flex-1 overflow-auto">
         {type === 'inventory' ? (
            <div className="flex flex-col space-y-8 p-1">
-             {Array.from(new Set(filteredData.map(item => {
-                const getRawFieldValue = (item: any, possibleFields: string[]) => {
-                  if (!item || !item._raw) return '';
-                  const keys = Object.keys(item._raw);
-                  for (const field of possibleFields) {
-                     const key = keys.find(k => k.toLowerCase().trim() === field.toLowerCase().trim());
-                     if (key && item._raw[key]) return String(item._raw[key]).trim();
-                  }
-                  return '';
-                };
-                const filial = getRawFieldValue(item, ['filial', 'armazem', 'armazém', 'local']) || 'Sem Filial';
-                const tipo = getRawFieldValue(item, ['tp', 'tipo', 'grupo']) || 'Geral';
-                return `${filial} - ${tipo}`;
-             }))).sort().map(groupKeyUnk => {
-                const groupKey = String(groupKeyUnk);
-                const getRawFieldValue = (item: any, possibleFields: string[]) => {
-                  if (!item || !item._raw) return '';
-                  const keys = Object.keys(item._raw);
-                  for (const field of possibleFields) {
-                     const key = keys.find(k => k.toLowerCase().trim() === field.toLowerCase().trim());
-                     if (key && item._raw[key]) return String(item._raw[key]).trim();
-                  }
-                  return '';
-                };
-                const filialData = filteredData.filter(item => {
-                   const filial = getRawFieldValue(item, ['filial', 'armazem', 'armazém', 'local']) || 'Sem Filial';
-                   const tipo = getRawFieldValue(item, ['tp', 'tipo', 'grupo']) || 'Geral';
-                   return `${filial} - ${tipo}` === groupKey;
-                });
-                
-                if (filialData.length === 0) return null;
-                
+             {inventoryGroups.map(([groupKey, filialData]) => {
                 const separatorIndex = groupKey.indexOf(' - ');
                 const filialPart = separatorIndex > -1 ? groupKey.substring(0, separatorIndex) : groupKey;
                 const tipoPart = separatorIndex > -1 ? groupKey.substring(separatorIndex + 3) : '';
