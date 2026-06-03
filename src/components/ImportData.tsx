@@ -269,12 +269,23 @@ export function ImportData({ onImportSC, onImportPC, onImportInventory }: Import
           _raw: row,
         }));
         
-        // Filter to only bring products that have Ponto Pedido
+        // Filter to only bring products that have Ponto Pedido > 0 and (Saldo <= Ponto Pedido)
         mappedInventory = mappedInventory.filter(item => {
            const ppRaw = getVal(item._raw, ['Ponto Pedido', 'Ponto de pedido']);
            if (ppRaw !== null && ppRaw !== undefined && ppRaw !== '') {
              const ppVal = typeof ppRaw === 'number' ? ppRaw : parseFloat(String(ppRaw).replace(/\./g, '').replace(',', '.'));
-             return !isNaN(ppVal) && ppVal > 0;
+             
+             if (!isNaN(ppVal) && ppVal > 0) {
+                 const saldoRaw = getVal(item._raw, ['Saldo Atual', 'Quantidade', 'Qtd', 'Saldo']);
+                 let saldoVal = 0;
+                 if (saldoRaw !== null && saldoRaw !== undefined && saldoRaw !== '') {
+                     saldoVal = typeof saldoRaw === 'number' ? saldoRaw : parseFloat(String(saldoRaw).replace(/\./g, '').replace(',', '.'));
+                 }
+                 if (isNaN(saldoVal)) saldoVal = 0;
+                 
+                 // If balance is below or equal to reorder point, it is "em ponto de pedido"
+                 return saldoVal <= ppVal;
+             }
            }
            return false;
         });
