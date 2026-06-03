@@ -142,16 +142,26 @@ export function ImportData({ onImportSC, onImportPC, onImportInventory }: Import
                 bestRowIndex = i;
              }
              const rowText = row.join(' ').toLowerCase().replace(/"/g, '');
-             if (rowText.includes('filial') || rowText.includes('numero da sc') || rowText.includes('solicitacao') || rowText.includes('produto') || rowText.includes('fornecedor') || rowText.includes('num. pc') || rowText.includes('pedido') || rowText.includes('armazem') || rowText.includes('local') || rowText.includes('codigo') || rowText.includes('cód') || rowText.includes('saldo atual') || rowText.includes('desc. cientifica') || rowText.includes('empenho')) {
-               if (row.length >= 2) {
+             
+             // Count how many known header keywords are in this row
+             const knownKeywords = ['filial', 'codigo', 'cód', 'descricao', 'descrição', 'produto', 'saldo', 'empenho', 'armazem', 'local', 'fornecedor', 'numero da sc', 'num. pc', 'pedido', 'solicitacao', 'um', 'grupo', 'classe'];
+             
+             let matchCount = 0;
+             for (const keyword of knownKeywords) {
+                if (rowText.includes(keyword)) {
+                   matchCount++;
+                }
+             }
+
+             // We need at least 3 known keywords to confidently consider this a data header row (avoiding cover sheets with a simple "Filial" title)
+             if (matchCount >= 3 && row.length >= 4) {
                   headerRowIndex = i;
                   break;
-               }
              }
            }
          }
          
-         // Se não encontrou cabeçalho e há múltiplas abas, pule esta aba (provavelmente não é de dados)
+         // Se não encontrou cabeçalho confiável e há múltiplas abas, pule esta aba (provavelmente é aba de parâmetros ou capa)
          if (headerRowIndex === -1 && workbook.SheetNames.length > 1) {
              continue;
          }
