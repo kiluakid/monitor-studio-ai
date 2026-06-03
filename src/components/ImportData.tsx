@@ -139,81 +139,91 @@ export function ImportData({ onImportSC, onImportPC, onImportInventory }: Import
             }
          }
 
-         // Procurar o índice da linha de cabeçalho
-         let headerRowIndex = -1;
-         let maxCols = 0;
-         let bestRowIndex = 0;
-
-         for (let i = 0; i < Math.min(rawData.length, 50); i++) {
-           const row = rawData[i];
-           if (row && Array.isArray(row)) {
-             if (row.length > maxCols) {
-                maxCols = row.length;
-                bestRowIndex = i;
-             }
-             const rowText = row.join(' ').toLowerCase().replace(/"/g, '');
-             
-             // Count how many known header keywords are in this row
-             const knownKeywords = ['filial', 'codigo', 'cód', 'descricao', 'descrição', 'produto', 'saldo', 'empenho', 'armazem', 'local', 'fornecedor', 'numero da sc', 'num. pc', 'pedido', 'solicitacao', 'um', 'grupo', 'classe', 'ponto pedido', 'med. consumo'];
-             
-             let matchCount = 0;
-             for (const keyword of knownKeywords) {
-                if (rowText.includes(keyword)) {
-                   matchCount++;
+         let currentFilial = sheetName;
+         let currentTipo = 'Geral';
+         let cleanHeaders: string[] = [];
+         
+         const knownKeywords = ['filial', 'codigo', 'cód', 'descricao', 'descrição', 'produto', 'saldo', 'empenho', 'armazem', 'local', 'fornecedor', 'numero da sc', 'num. pc', 'pedido', 'solicitacao', 'um', 'grupo', 'classe', 'ponto pedido', 'med. consumo'];
+         
+         const parsedRows: any[] = [];
+         
+         for (let i = 0; i < rawData.length; i++) {
+            const row = rawData[i];
+            if (!row || !Array.isArray(row) || row.length === 0) continue;
+            
+            // Rejoin stripped row checking for Protheus block headers like "F I L I A L :   0 1"
+            const rowStr = row.map(r => String(r || '').replace(/^["'\s]+|["'\s]+$/g, '').trim()).filter(r => r !== '').join(' ');
+            const rowStrUpper = rowStr.toUpperCase().replace(/\s+/g, ' '); // normalize spaces
+            
+            if (rowStrUpper.includes('FILIAL :') || rowStrUpper.includes('FILIAL:')) {
+               // capture filial
+               const fMatch = rowStrUpper.match(/FILIAL\s*:\s*([^\|]+)/);
+               if (fMatch) currentFilial = fMatch[1].trim();
+               
+               const tMatch = rowStrUpper.match(/TIPO\s*:\s*([^\|]+)/);
+               if (tMatch) currentTipo = tMatch[1].trim();
+               continue; // skip this row as it's a block separator
+            }
+            
+            // Check if it's a header row
+            let matchCount = 0;
+            const rowLower = rowStr.toLowerCase();
+            for (const keyword of knownKeywords) {
+               if (rowLower.includes(keyword)) matchCount++;
+            }
+            
+            // We need at least 3 known keywords to confidently consider this a data header row
+            if (matchCount >= 3 && row.length >= 4) {
+                // update current headers
+                cleanHeaders = row.map((h: any) => typeof h === 'string' ? h.replace(/^["'\s]+|["'\s]+$/g, '').trim() : String(h || '').trim());
+                continue; // skip mapping this row as data
+            }
+            
+            // If we have headers, map the data
+            if (cleanHeaders.length > 0) {
+                const obj: any = {};
+                let hasData = false;
+                
+                cleanHeaders.forEach((header: any, index: number) => {
+                  if (header && header !== '') {
+                    let val = row[index];
+                    if (typeof val === 'string') {
+                       val = val.replace(/^["'\s]+|["'\s]+$/g, '').trim();
+                       // Try to convert string numbers
+                       if (/^-?\d{1,3}(?:\.\d{3})*,\d+$/.test(val)) val = parseFloat(val.replace(/\./g, '').replace(',', '.'));
+                       else if (/^-?\d+,\d+$/.test(val)) val = parseFloat(val.replace(',', '.'));
+                       else if (/^-?\d+\.\d+,\d+$/.test(val)) val = parseFloat(val.replace(/\./g, '').replace(',', '.'));
+                       else if (/^-?\d+\.\d+$/.test(val)) val = parseFloat(val);
+                       else if (/^-?\d+$/.test(val) && val.length < 16) val = parseInt(val, 10);
+                    }
+                    if (val !== undefined && val !== null && val !== '') {
+                       obj[header] = val;
+                       hasData = true;
+                    }
+                  }
+                });
+                
+                if (hasData && Object.keys(obj).length > 2) { // must have more than just a couple fields to be real data
+                   obj['_sheetName'] = sheetName;
+                   const hasFilial = Object.keys(obj).some(k => ['filial', 'armazem', 'armazém', 'local'].includes(k.toLowerCase().trim()));
+                   if (!hasFilial) {
+                       obj['Filial'] = currentFilial;
+                   }
+                   const hasTipo = Object.keys(obj).some(k => ['tp', 'tipo', 'grupo'].includes(k.toLowerCase().trim()));
+                   if (!hasTipo) {
+                       obj['Tipo'] = currentTipo; 
+                   }
+                   parsedRows.push(obj);
                 }
-             }
-
-             // We need at least 3 known keywords to confidently consider this a data header row (avoiding cover sheets with a simple "Filial" title)
-             if (matchCount >= 3 && row.length >= 4) {
-                  headerRowIndex = i;
-                   bestRowIndex = i; // Save this as absolute best
-                  break;
-             }
-           }
+            }
          }
          
-         // Se não encontrou cabeçalho confiável e há múltiplas abas, pule esta aba (provavelmente é aba de parâmetros ou capa)
-         if (headerRowIndex === -1 && workbook.SheetNames.length > 1) {
+         // Se não encontrou cabeçalho confiável e há múltiplas abas, pule
+         if (parsedRows.length === 0 && targetSheetNames.length > 1) {
              continue;
          }
          
-         if (headerRowIndex === -1) headerRowIndex = bestRowIndex;
-
-         const headers = rawData[headerRowIndex] || [];
-         const cleanHeaders = headers.map((h: any) => typeof h === 'string' ? h.replace(/^["'\s]+|["'\s]+$/g, '').trim() : h);
-         
-         // Mapear os dados usando o cabeçalho correto
-         const json = rawData.slice(headerRowIndex + 1).map(row => {
-           const obj: any = {};
-           if (Array.isArray(row)) {
-             cleanHeaders.forEach((header: any, index: number) => {
-               if (header && typeof header === 'string' && header !== '') {
-                 let val = row[index];
-                 if (typeof val === 'string') {
-                    val = val.replace(/^["'\s]+|["'\s]+$/g, '').trim();
-                    // Try to convert string numbers
-                    if (/^-?\d{1,3}(?:\.\d{3})*,\d+$/.test(val)) val = parseFloat(val.replace(/\./g, '').replace(',', '.'));
-                    else if (/^-?\d+,\d+$/.test(val)) val = parseFloat(val.replace(',', '.'));
-                    else if (/^-?\d+\.\d+,\d+$/.test(val)) val = parseFloat(val.replace(/\./g, '').replace(',', '.'));
-                    else if (/^-?\d+\.\d+$/.test(val)) val = parseFloat(val);
-                    else if (/^-?\d+$/.test(val) && val.length < 16) val = parseInt(val, 10);
-                 }
-                 if (val !== undefined && val !== null && val !== '') {
-                    obj[header] = val;
-                 }
-               }
-             });
-             obj['_sheetName'] = sheetName;
-             
-             // Inject Filial from sheetName if not present
-             const hasFilial = Object.keys(obj).some(k => ['filial', 'armazem', 'armazém', 'local'].includes(k.toLowerCase().trim()));
-             if (!hasFilial && sheetName) {
-                 obj['Filial'] = sheetName;
-             }
-           }
-           return obj;
-         }).filter(row => Object.keys(row).length > 1); // Only keep rows that actually parsed something
-         
+         const json = parsedRows;
          allCombinedJson = allCombinedJson.concat(json);
       }
 
@@ -260,8 +270,8 @@ export function ImportData({ onImportSC, onImportPC, onImportInventory }: Import
         // Filter to only bring products that have Ponto Pedido
         mappedInventory = mappedInventory.filter(item => {
            const ppRaw = getVal(item._raw, ['Ponto Pedido', 'Ponto de pedido']);
-           if (ppRaw !== null && ppRaw !== undefined) {
-             const ppVal = parseFloat(String(ppRaw).replace(',', '.'));
+           if (ppRaw !== null && ppRaw !== undefined && ppRaw !== '') {
+             const ppVal = typeof ppRaw === 'number' ? ppRaw : parseFloat(String(ppRaw).replace(/\./g, '').replace(',', '.'));
              return !isNaN(ppVal) && ppVal > 0;
            }
            return false;
