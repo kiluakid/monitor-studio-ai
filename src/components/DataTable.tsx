@@ -179,7 +179,7 @@ export function DataTable({ type, data }: DataTableProps) {
             if (filialKey && item._raw[filialKey]) filial = String(item._raw[filialKey]).trim();
             if (tipoKey && item._raw[tipoKey]) tipo = String(item._raw[tipoKey]).trim();
         }
-        const key = `${filial} - ${tipo}`;
+        const key = filial;
         
         let arr = groupsMap.get(key);
         if (!arr) {
@@ -405,15 +405,13 @@ export function DataTable({ type, data }: DataTableProps) {
         {type === 'inventory' ? (
            <div className="flex flex-col space-y-8 p-1">
              {inventoryGroups.map(([groupKey, filialData]) => {
-                const separatorIndex = groupKey.indexOf(' - ');
-                const filialPart = separatorIndex > -1 ? groupKey.substring(0, separatorIndex) : groupKey;
-                const tipoPart = separatorIndex > -1 ? groupKey.substring(separatorIndex + 3) : '';
+                const filialPart = groupKey;
                 
                 return (
                   <div key={groupKey} className="bg-neutral-900 border border-neutral-700 w-full overflow-hidden rounded-md flex flex-col">
                     <div className="bg-neutral-800/80 text-cyan-400 font-bold px-4 py-3 border-b border-neutral-700 flex justify-between items-center whitespace-nowrap">
                        <span className="uppercase tracking-wide">
-                          F I L I A L : {filialPart} {tipoPart && <><span className="text-neutral-500 mx-2">|</span> T I P O : {tipoPart}</>}
+                          F I L I A L : {filialPart}
                        </span>
                        <span className="text-xs font-normal text-neutral-400 bg-neutral-900 px-2 py-1 rounded border border-neutral-700">
                          {filialData.length} Itens
