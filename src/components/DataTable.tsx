@@ -110,13 +110,36 @@ export function DataTable({ type, data }: DataTableProps) {
         if (item._raw) {
           Object.keys(item._raw).forEach(k => {
              const keyLower = k.trim().toLowerCase();
-             if (!keyLower.includes('empty') && !keyLower.includes('listagem do browse') && keyLower !== '') {
+             if (!keyLower.includes('empty') && !keyLower.includes('listagem do browse') && !k.startsWith('_') && keyLower !== '') {
                 keys.add(k.trim());
              }
           });
         }
       });
-      const arr = Array.from(keys);
+      let arr = Array.from(keys);
+      
+      if (type === 'inventory') {
+        const INVENTORY_ORDER = [
+          "Filial", "Codigo", "Descricao", "Desc. Cientifica", "Tp", "Grupo", 
+          "UM", "Saldo Atual", "Empenho", "SCsColocadas", "PCsColocados", 
+          "OPsColocadas", "PVsColocados", "Ponto Pedido", "Lote Econom.", 
+          "Entrega", "Estoqueem Meses", "Med. Consumo", "DT.Ult.Saida", 
+          "CL", "Contr.Endere", "Classe ABC"
+        ];
+        
+        arr.sort((a, b) => {
+          const indexA = INVENTORY_ORDER.indexOf(a);
+          const indexB = INVENTORY_ORDER.indexOf(b);
+          
+          if (indexA !== -1 && indexB !== -1) {
+            return indexA - indexB;
+          }
+          if (indexA !== -1) return -1;
+          if (indexB !== -1) return 1;
+          return a.localeCompare(b);
+        });
+      }
+
       if (arr.length > 0) return arr;
       
       // Fallback
