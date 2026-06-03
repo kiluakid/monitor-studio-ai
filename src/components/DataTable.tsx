@@ -23,17 +23,31 @@ export function DataTable({ type, data }: DataTableProps) {
   const filiais = useMemo(() => {
     const fSet = new Set<string>();
     data.forEach(item => {
-       const key = Object.keys(item._raw || {}).find(k => k.toLowerCase().trim() === 'filial');
-       if (key && item._raw && item._raw[key]) fSet.add(String(item._raw[key]));
+       const keys = Object.keys(item._raw || {});
+       let key = keys.find(k => k.toLowerCase().trim() === 'filial');
+       if (!key) key = keys.find(k => k.toLowerCase().trim() === 'armazém' || k.toLowerCase().trim() === 'armazem' || k.toLowerCase().trim() === 'local');
+       if (key && item._raw && item._raw[key]) {
+           const f = String(item._raw[key]).trim();
+           if (f) fSet.add(f);
+       }
     });
     return Array.from(fSet).sort();
   }, [data]);
 
   // Extract unique categories (for inventory, maybe we use warehouse as category, or just product description)
-  const categories = useMemo(() => Array.from(new Set(data.map(item => {
-    if (type === 'inventory') return (item as InventoryItem).warehouse || 'Geral';
-    return (item as any).category || 'Geral';
-  }))), [data, type]);
+  const categories = useMemo(() => {
+    const cSet = new Set<string>();
+    data.forEach(item => {
+      if (type === 'inventory') {
+         const keys = Object.keys(item._raw || {});
+         const key = keys.find(k => k.toLowerCase().trim() === 'tipo' || k.toLowerCase().trim() === 'tp' || k.toLowerCase().trim() === 'grupo');
+         if (key && item._raw && item._raw[key]) cSet.add(String(item._raw[key]).trim());
+      } else {
+         cSet.add(String((item as any).category || 'Geral').trim());
+      }
+    });
+    return Array.from(cSet).filter(c => c).sort();
+  }, [data, type]);
 
   const filteredData = useMemo(() => {
     return data.filter(item => {
@@ -54,13 +68,20 @@ export function DataTable({ type, data }: DataTableProps) {
       const matchesSearch = searchStr.includes(searchTerm.toLowerCase());
       
       let itemCategory = 'Geral';
-      if (type === 'sc' || type === 'pc') itemCategory = (item as any).category;
-      if (type === 'inventory') itemCategory = (item as InventoryItem).warehouse;
+      if (type === 'sc' || type === 'pc') {
+         itemCategory = (item as any).category;
+      } else if (type === 'inventory') {
+         const keys = Object.keys((item as any)._raw || {});
+         const key = keys.find(k => k.toLowerCase().trim() === 'tipo' || k.toLowerCase().trim() === 'tp' || k.toLowerCase().trim() === 'grupo');
+         if (key && (item as any)._raw) itemCategory = String((item as any)._raw[key]).trim();
+      }
       
       const matchesCategory = filterCategory === 'All' || itemCategory === filterCategory;
       const matchesFilial = filterFilial === 'All' || (() => {
-         const key = Object.keys((item as any)._raw || {}).find(k => k.toLowerCase().trim() === 'filial');
-         return key && (item as any)._raw && String((item as any)._raw[key]) === filterFilial;
+         const keys = Object.keys((item as any)._raw || {});
+         let key = keys.find(k => k.toLowerCase().trim() === 'filial');
+         if (!key) key = keys.find(k => k.toLowerCase().trim() === 'armazém' || k.toLowerCase().trim() === 'armazem' || k.toLowerCase().trim() === 'local');
+         return key && (item as any)._raw && String((item as any)._raw[key]).trim() === filterFilial;
       })();
       
       return matchesSearch && matchesCategory && matchesFilial;
@@ -83,22 +104,28 @@ export function DataTable({ type, data }: DataTableProps) {
   }, [data, searchTerm, filterFilial, filterCategory, sortBy, type]);
 
   const dynamicColumns = useMemo(() => {
-    if (data.length > 0 && data[0]._raw) {
+    if (data.length > 0) {
       const keys = new Set<string>();
       data.slice(0, 50).forEach(item => {
         if (item._raw) {
           Object.keys(item._raw).forEach(k => {
              const keyLower = k.trim().toLowerCase();
              if (!keyLower.includes('empty') && !keyLower.includes('listagem do browse') && keyLower !== '') {
-                keys.add(k);
+                keys.add(k.trim());
              }
           });
         }
       });
-      return Array.from(keys);
+      const arr = Array.from(keys);
+      if (arr.length > 0) return arr;
+      
+      // Fallback
+      if (type === 'inventory') {
+         return ['id', 'description', 'warehouse', 'quantity', 'unitValue', 'totalValue', 'date'];
+      }
     }
     return null;
-  }, [data]);
+  }, [data, type]);
 
   const handleExport = () => {
     if (!filteredData || filteredData.length === 0) return;
@@ -299,23 +326,32 @@ export function DataTable({ type, data }: DataTableProps) {
         {type === 'inventory' ? (
            <div className="flex flex-col space-y-8 p-1">
              {Array.from(new Set(filteredData.map(item => {
-                const getRawFieldValue = (item: any, fieldName: string) => {
+                const getRawFieldValue = (item: any, possibleFields: string[]) => {
                   if (!item || !item._raw) return '';
-                  const key = Object.keys(item._raw).find(k => k.toLowerCase().trim() === fieldName.toLowerCase().trim());
-                  return key ? String(item._raw[key] || '') : '';
+                  const keys = Object.keys(item._raw);
+                  for (const field of possibleFields) {
+                     const key = keys.find(k => k.toLowerCase().trim() === field.toLowerCase().trim());
+                     if (key && item._raw[key]) return String(item._raw[key]).trim();
+                  }
+                  return '';
                 };
-                const filial = getRawFieldValue(item, 'filial') || 'Sem Filial';
-                const tipo = getRawFieldValue(item, 'tp') || getRawFieldValue(item, 'tipo') || 'Geral';
+                const filial = getRawFieldValue(item, ['filial', 'armazem', 'armazém', 'local']) || 'Sem Filial';
+                const tipo = getRawFieldValue(item, ['tp', 'tipo', 'grupo']) || 'Geral';
                 return `${filial} - ${tipo}`;
-             }))).sort().map(groupKey => {
-                const getRawFieldValue = (item: any, fieldName: string) => {
+             }))).sort().map(groupKeyUnk => {
+                const groupKey = String(groupKeyUnk);
+                const getRawFieldValue = (item: any, possibleFields: string[]) => {
                   if (!item || !item._raw) return '';
-                  const key = Object.keys(item._raw).find(k => k.toLowerCase().trim() === fieldName.toLowerCase().trim());
-                  return key ? String(item._raw[key] || '') : '';
+                  const keys = Object.keys(item._raw);
+                  for (const field of possibleFields) {
+                     const key = keys.find(k => k.toLowerCase().trim() === field.toLowerCase().trim());
+                     if (key && item._raw[key]) return String(item._raw[key]).trim();
+                  }
+                  return '';
                 };
                 const filialData = filteredData.filter(item => {
-                   const filial = getRawFieldValue(item, 'filial') || 'Sem Filial';
-                   const tipo = getRawFieldValue(item, 'tp') || getRawFieldValue(item, 'tipo') || 'Geral';
+                   const filial = getRawFieldValue(item, ['filial', 'armazem', 'armazém', 'local']) || 'Sem Filial';
+                   const tipo = getRawFieldValue(item, ['tp', 'tipo', 'grupo']) || 'Geral';
                    return `${filial} - ${tipo}` === groupKey;
                 });
                 
@@ -326,16 +362,17 @@ export function DataTable({ type, data }: DataTableProps) {
                 const tipoPart = separatorIndex > -1 ? groupKey.substring(separatorIndex + 3) : '';
                 
                 return (
-                  <div key={groupKey} className="bg-neutral-900 border border-neutral-700 w-full overflow-x-auto">
-                    <div className="bg-neutral-800 text-cyan-400 font-bold px-4 py-3 border-b border-neutral-700 flex justify-between items-center whitespace-nowrap">
-                       <span className="sticky left-4 uppercase tracking-wide">
+                  <div key={groupKey} className="bg-neutral-900 border border-neutral-700 w-full overflow-hidden rounded-md flex flex-col">
+                    <div className="bg-neutral-800/80 text-cyan-400 font-bold px-4 py-3 border-b border-neutral-700 flex justify-between items-center whitespace-nowrap">
+                       <span className="uppercase tracking-wide">
                           F I L I A L : {filialPart} {tipoPart && <><span className="text-neutral-500 mx-2">|</span> T I P O : {tipoPart}</>}
                        </span>
-                       <span className="sticky right-4 text-xs font-normal text-neutral-400 bg-neutral-900 px-2 py-1 rounded">
+                       <span className="text-xs font-normal text-neutral-400 bg-neutral-900 px-2 py-1 rounded border border-neutral-700">
                          {filialData.length} Itens
                        </span>
                     </div>
-                    <table className="w-full text-left border-collapse min-w-max">
+                    <div className="w-full overflow-x-auto scrollbar-thin scrollbar-thumb-neutral-700 scrollbar-track-neutral-900">
+                    <table className="w-full text-left border-collapse whitespace-nowrap min-w-max">
                       <thead>
                         <tr className="bg-neutral-950/20 border-b border-neutral-800 text-neutral-400 text-[11px] uppercase tracking-wider">
                           {dynamicColumns ? (
@@ -354,8 +391,8 @@ export function DataTable({ type, data }: DataTableProps) {
                           >
                             {dynamicColumns ? (
                               dynamicColumns.map((col, idx) => {
-                                 const value = item._raw?.[col];
-                                 let displayValue = '-';
+                                  const value = item._raw && col in item._raw ? item._raw[col] : (item as any)[col];
+                                  let displayValue = '-';
                                  
                                  if (value !== undefined && value !== null) {
                                     const colLower = col.toLowerCase();
@@ -387,6 +424,7 @@ export function DataTable({ type, data }: DataTableProps) {
                         ))}
                       </tbody>
                     </table>
+                    </div>
                   </div>
                 );
              })}

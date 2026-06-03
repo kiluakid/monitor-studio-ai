@@ -9,6 +9,7 @@ const BACKUP_KEY = 'protheus_monitor_backup_v2';
 const defaultState: AppState = {
   purchaseRequests: [],
   purchaseOrders: [],
+  inventory: [],
   lastBackupDate: null,
 };
 

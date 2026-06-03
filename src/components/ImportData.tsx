@@ -120,17 +120,28 @@ export function ImportData({ onImportSC, onImportPC, onImportInventory }: Import
       }
 
       // Procurar o índice da linha de cabeçalho
-      let headerRowIndex = 0;
+      let headerRowIndex = -1;
+      let maxCols = 0;
+      let bestRowIndex = 0;
+
       for (let i = 0; i < Math.min(rawData.length, 50); i++) {
         const row = rawData[i];
         if (row && Array.isArray(row)) {
+          if (row.length > maxCols) {
+             maxCols = row.length;
+             bestRowIndex = i;
+          }
           const rowText = row.join(' ').toLowerCase().replace(/"/g, '');
           if (rowText.includes('filial') || rowText.includes('numero da sc') || rowText.includes('solicitacao') || rowText.includes('produto') || rowText.includes('fornecedor') || rowText.includes('num. pc') || rowText.includes('pedido') || rowText.includes('armazem') || rowText.includes('local') || rowText.includes('codigo') || rowText.includes('cód') || rowText.includes('saldo atual') || rowText.includes('desc. cientifica') || rowText.includes('empenho')) {
-            headerRowIndex = i;
-            break;
+            if (row.length >= 2) {
+               headerRowIndex = i;
+               break;
+            }
           }
         }
       }
+      
+      if (headerRowIndex === -1) headerRowIndex = bestRowIndex;
 
       const headers = rawData[headerRowIndex] || [];
       const cleanHeaders = headers.map((h: any) => typeof h === 'string' ? h.replace(/^["'\s]+|["'\s]+$/g, '').trim() : h);
@@ -378,7 +389,9 @@ export function ImportData({ onImportSC, onImportPC, onImportInventory }: Import
              <p className="font-medium">
                 {importStatus.type === 'pc' 
                   ? `${importStatus.count} Pedidos de Compra (MATA121) importados.` 
-                  : `${importStatus.count} Solicitações de Compra (MATA110) importadas.`}
+                  : importStatus.type === 'inventory' 
+                    ? `${importStatus.count} Itens de Estoque (MATR290) importados.`
+                    : `${importStatus.count} Solicitações de Compra (MATA110) importadas.`}
              </p>
           </div>
           <button 
