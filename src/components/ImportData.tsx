@@ -91,84 +91,111 @@ export function ImportData({ onImportSC, onImportPC, onImportInventory }: Import
     try {
       const data = await file.arrayBuffer();
       const workbook = xlsx.read(data, { type: 'array' });
-      const firstSheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[firstSheetName];
       
-      // Obter os dados como array bidimensional para encontrar o cabeçalho real
-      let rawData = xlsx.utils.sheet_to_json<any>(worksheet, { header: 1 });
+      let allCombinedJson: any[] = [];
       
-      // Protheus frequently exports CSVs with semicolons that get parsed as a single column by the xlsx library
-      if (rawData.length > 0) {
-         let isSemicolonCSV = true;
-         // Check first 10 rows to see if they all have exactly 1 column containing a semicolon
-         for(let i=0; i < Math.min(rawData.length, 10); i++) {
-             if (rawData[i] && rawData[i].length > 1) {
-                 isSemicolonCSV = false;
-                 break;
+      for (const sheetName of workbook.SheetNames) {
+         // Skip common configuration or parameter sheets
+         if (sheetName.toLowerCase().includes('parâmetro') || sheetName.toLowerCase().includes('parametro')) {
+             continue;
+         }
+
+         const worksheet = workbook.Sheets[sheetName];
+         
+         // Obter os dados como array bidimensional para encontrar o cabeçalho real
+         let rawData = xlsx.utils.sheet_to_json<any>(worksheet, { header: 1 });
+         
+         if (rawData.length === 0) continue;
+
+         // Protheus frequently exports CSVs with semicolons that get parsed as a single column by the xlsx library
+         if (rawData.length > 0) {
+            let isSemicolonCSV = true;
+            // Check first 10 rows to see if they all have exactly 1 column containing a semicolon
+            for(let i=0; i < Math.min(rawData.length, 10); i++) {
+                if (rawData[i] && rawData[i].length > 1) {
+                    isSemicolonCSV = false;
+                    break;
+                }
+            }
+            
+            if (isSemicolonCSV) {
+                rawData = rawData.map(row => {
+                    if (row && row.length > 0 && typeof row[0] === 'string' && row[0].includes(';')) {
+                        // Remover aspas para evitar problemas em CSV exportado do Protheus
+                        return row[0].replace(/"/g, '').split(';');
+                    }
+                    return row;
+                });
+            }
+         }
+
+         // Procurar o índice da linha de cabeçalho
+         let headerRowIndex = -1;
+         let maxCols = 0;
+         let bestRowIndex = 0;
+
+         for (let i = 0; i < Math.min(rawData.length, 50); i++) {
+           const row = rawData[i];
+           if (row && Array.isArray(row)) {
+             if (row.length > maxCols) {
+                maxCols = row.length;
+                bestRowIndex = i;
              }
+             const rowText = row.join(' ').toLowerCase().replace(/"/g, '');
+             if (rowText.includes('filial') || rowText.includes('numero da sc') || rowText.includes('solicitacao') || rowText.includes('produto') || rowText.includes('fornecedor') || rowText.includes('num. pc') || rowText.includes('pedido') || rowText.includes('armazem') || rowText.includes('local') || rowText.includes('codigo') || rowText.includes('cód') || rowText.includes('saldo atual') || rowText.includes('desc. cientifica') || rowText.includes('empenho')) {
+               if (row.length >= 2) {
+                  headerRowIndex = i;
+                  break;
+               }
+             }
+           }
          }
          
-         if (isSemicolonCSV) {
-             rawData = rawData.map(row => {
-                 if (row && row.length > 0 && typeof row[0] === 'string' && row[0].includes(';')) {
-                     // Remover aspas para evitar problemas em CSV exportado do Protheus
-                     return row[0].replace(/"/g, '').split(';');
-                 }
-                 return row;
-             });
+         // Se não encontrou cabeçalho e há múltiplas abas, pule esta aba (provavelmente não é de dados)
+         if (headerRowIndex === -1 && workbook.SheetNames.length > 1) {
+             continue;
          }
+         
+         if (headerRowIndex === -1) headerRowIndex = bestRowIndex;
+
+         const headers = rawData[headerRowIndex] || [];
+         const cleanHeaders = headers.map((h: any) => typeof h === 'string' ? h.replace(/^["'\s]+|["'\s]+$/g, '').trim() : h);
+         
+         // Mapear os dados usando o cabeçalho correto
+         const json = rawData.slice(headerRowIndex + 1).map(row => {
+           const obj: any = {};
+           if (Array.isArray(row)) {
+             cleanHeaders.forEach((header: any, index: number) => {
+               if (header && typeof header === 'string' && header !== '') {
+                 let val = row[index];
+                 if (typeof val === 'string') {
+                    val = val.replace(/^["'\s]+|["'\s]+$/g, '').trim();
+                    // Try to convert string numbers
+                    if (/^-?\d+,\d+$/.test(val)) val = parseFloat(val.replace(',', '.'));
+                    else if (/^-?\d+\.\d+,\d+$/.test(val)) val = parseFloat(val.replace('.', '').replace(',', '.'));
+                    else if (/^-?\d+\.\d+$/.test(val)) val = parseFloat(val);
+                    else if (/^-?\d+$/.test(val) && val.length < 16) val = parseInt(val, 10);
+                 }
+                 if (val !== undefined && val !== null && val !== '') {
+                    obj[header] = val;
+                 }
+               }
+             });
+             obj['_sheetName'] = sheetName;
+             
+             // Inject Filial from sheetName if not present
+             const hasFilial = Object.keys(obj).some(k => ['filial', 'armazem', 'armazém', 'local'].includes(k.toLowerCase().trim()));
+             if (!hasFilial && sheetName) {
+                 obj['Filial'] = sheetName;
+             }
+           }
+           return obj;
+         }).filter(row => Object.keys(row).length > 1); // Only keep rows that actually parsed something
+         
+         allCombinedJson = allCombinedJson.concat(json);
       }
 
-      // Procurar o índice da linha de cabeçalho
-      let headerRowIndex = -1;
-      let maxCols = 0;
-      let bestRowIndex = 0;
-
-      for (let i = 0; i < Math.min(rawData.length, 50); i++) {
-        const row = rawData[i];
-        if (row && Array.isArray(row)) {
-          if (row.length > maxCols) {
-             maxCols = row.length;
-             bestRowIndex = i;
-          }
-          const rowText = row.join(' ').toLowerCase().replace(/"/g, '');
-          if (rowText.includes('filial') || rowText.includes('numero da sc') || rowText.includes('solicitacao') || rowText.includes('produto') || rowText.includes('fornecedor') || rowText.includes('num. pc') || rowText.includes('pedido') || rowText.includes('armazem') || rowText.includes('local') || rowText.includes('codigo') || rowText.includes('cód') || rowText.includes('saldo atual') || rowText.includes('desc. cientifica') || rowText.includes('empenho')) {
-            if (row.length >= 2) {
-               headerRowIndex = i;
-               break;
-            }
-          }
-        }
-      }
-      
-      if (headerRowIndex === -1) headerRowIndex = bestRowIndex;
-
-      const headers = rawData[headerRowIndex] || [];
-      const cleanHeaders = headers.map((h: any) => typeof h === 'string' ? h.replace(/^["'\s]+|["'\s]+$/g, '').trim() : h);
-      
-      // Mapear os dados usando o cabeçalho correto
-      const json = rawData.slice(headerRowIndex + 1).map(row => {
-        const obj: any = {};
-        if (Array.isArray(row)) {
-          cleanHeaders.forEach((header: any, index: number) => {
-            if (header && typeof header === 'string' && header !== '') {
-              let val = row[index];
-              if (typeof val === 'string') {
-                 val = val.replace(/^["'\s]+|["'\s]+$/g, '').trim();
-                 // Try to convert string numbers
-                 if (/^-?\d+,\d+$/.test(val)) val = parseFloat(val.replace(',', '.'));
-                 else if (/^-?\d+\.\d+,\d+$/.test(val)) val = parseFloat(val.replace('.', '').replace(',', '.'));
-                 else if (/^-?\d+\.\d+$/.test(val)) val = parseFloat(val);
-                 else if (/^-?\d+$/.test(val) && val.length < 16) val = parseInt(val, 10);
-              }
-              if (val !== undefined && val !== null && val !== '') {
-                 obj[header] = val;
-              }
-            }
-          });
-        }
-        return obj;
-      }).filter(row => Object.keys(row).length > 0);
+      const json = allCombinedJson;
 
       if (!json || json.length === 0) {
         throw new Error('Planilha vazia ou formato inválido.');
