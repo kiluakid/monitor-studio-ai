@@ -153,12 +153,14 @@ export function ImportData({ onImportSC, onImportPC, onImportInventory }: Import
             
             // Rejoin stripped row checking for Protheus block headers like "F I L I A L :   0 1"
             const rowStr = row.map(r => String(r || '').replace(/^["'\s]+|["'\s]+$/g, '').trim()).filter(r => r !== '').join(' ');
-            const rowStrUpper = rowStr.toUpperCase().replace(/\s+/g, ' '); // normalize spaces
+            let rowStrUpper = rowStr.toUpperCase().replace(/\s+/g, ' '); // normalize spaces
+            rowStrUpper = rowStrUpper.replace(/F\s*I\s*L\s*I\s*A\s*L/g, 'FILIAL');
+            rowStrUpper = rowStrUpper.replace(/T\s*I\s*P\s*O/g, 'TIPO');
             
             if (rowStrUpper.includes('FILIAL :') || rowStrUpper.includes('FILIAL:')) {
                // capture filial
-               const fMatch = rowStrUpper.match(/FILIAL\s*:\s*([^\|]+)/);
-               if (fMatch) currentFilial = fMatch[1].trim();
+               const fMatch = rowStrUpper.match(/FILIAL\s*:\s*(.*?)(?:TIPO|$)/);
+               if (fMatch) currentFilial = fMatch[1].replace(/\|.*$/, '').trim();
                
                const tMatch = rowStrUpper.match(/TIPO\s*:\s*([^\|]+)/);
                if (tMatch) currentTipo = tMatch[1].trim();
@@ -267,12 +269,23 @@ export function ImportData({ onImportSC, onImportPC, onImportInventory }: Import
           _raw: row,
         }));
         
-        // Filter to only bring products that have Ponto Pedido
+        // Filter to only bring products that have Ponto Pedido and Saldo <= Ponto Pedido
         mappedInventory = mappedInventory.filter(item => {
            const ppRaw = getVal(item._raw, ['Ponto Pedido', 'Ponto de pedido']);
            if (ppRaw !== null && ppRaw !== undefined && ppRaw !== '') {
              const ppVal = typeof ppRaw === 'number' ? ppRaw : parseFloat(String(ppRaw).replace(/\./g, '').replace(',', '.'));
-             return !isNaN(ppVal) && ppVal > 0;
+             
+             if (!isNaN(ppVal) && ppVal > 0) {
+                 const saldoRaw = getVal(item._raw, ['Saldo Atual', 'Quantidade', 'Qtd', 'Saldo']);
+                 let saldoVal = 0;
+                 if (saldoRaw !== null && saldoRaw !== undefined && saldoRaw !== '') {
+                     saldoVal = typeof saldoRaw === 'number' ? saldoRaw : parseFloat(String(saldoRaw).replace(/\./g, '').replace(',', '.'));
+                 }
+                 if (isNaN(saldoVal)) saldoVal = 0;
+                 
+                 // If balance is below or equal to reorder point, it's "em ponto de pedido"
+                 return saldoVal <= ppVal;
+             }
            }
            return false;
         });
