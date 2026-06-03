@@ -176,12 +176,23 @@ export function ImportData({ onImportSC, onImportPC, onImportInventory }: Import
 
       const getVal = (row: any, searchKeys: string[]) => {
          const keys = Object.keys(row);
+         
+         // 1. Try exact match (case insensitive)
          for (const sk of searchKeys) {
-            const found = keys.find(k => k.toLowerCase() === sk.toLowerCase());
+            const found = keys.find(k => k.trim().toLowerCase() === sk.trim().toLowerCase());
             if (found !== undefined && row[found] !== undefined && row[found] !== null && row[found] !== '') {
                return row[found];
             }
          }
+         
+         // 2. Try partial match
+         for (const sk of searchKeys) {
+            const found = keys.find(k => k.trim().toLowerCase().includes(sk.trim().toLowerCase()));
+            if (found !== undefined && row[found] !== undefined && row[found] !== null && row[found] !== '') {
+               return row[found];
+            }
+         }
+         
          return null;
       };
       
