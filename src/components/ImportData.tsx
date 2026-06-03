@@ -96,14 +96,6 @@ export function ImportData({ onImportSC, onImportPC, onImportInventory }: Import
       
       let targetSheetNames = workbook.SheetNames;
       
-      if (targetType === 'inventory') {
-         // Se for importação de inventário (MATR290) e tiver a aba específica, force usar APENAS ela
-         const matr290GeralSheet = workbook.SheetNames.find(name => name.toLowerCase().replace(/\s+/g, '') === 'matr290geral');
-         if (matr290GeralSheet) {
-             targetSheetNames = [matr290GeralSheet];
-         }
-      }
-      
       for (const sheetName of targetSheetNames) {
          // Skip common configuration or parameter sheets
          if (sheetName.toLowerCase().includes('parâmetro') || sheetName.toLowerCase().includes('parametro')) {
