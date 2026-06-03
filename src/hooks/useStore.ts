@@ -120,9 +120,8 @@ export function useStore() {
       const chunk = items.slice(i, i + CHUNK_SIZE);
       const batch = writeBatch(db);
       chunk.forEach(item => {
-        // Strip out React/Proxy garbage
         const cleanItem = { ...item };
-        delete cleanItem._raw; // just in case
+        // We MUST preserve _raw because the DataTable dynamically renders Protheus columns based on it
         Object.keys(cleanItem).forEach(key => {
           if (cleanItem[key] === undefined) {
              delete cleanItem[key];

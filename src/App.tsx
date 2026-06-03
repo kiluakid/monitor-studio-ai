@@ -30,7 +30,7 @@ export default function App() {
       
       {/* Mobile Header */}
       <div className="md:hidden bg-neutral-950 text-white p-4 flex justify-between items-center z-20 shadow-md border-b border-neutral-800">
-        <h1 className="font-bold text-lg tracking-tight">Protheus SC/PC</h1>
+        <h1 className="font-bold text-lg tracking-tight">MONITOR V2</h1>
         <button onClick={toggleSidebar} className="p-1 focus:outline-none focus:ring-2 focus:ring-white rounded">
           {isSidebarOpen ? <X /> : <Menu />}
         </button>
@@ -44,7 +44,7 @@ export default function App() {
       `}>
         <div className="p-6 hidden md:block">
           <h1 className="text-2xl font-bold tracking-tight text-white mb-1">
-            Protheus Monitor
+            MONITOR V2
           </h1>
           <p className="text-neutral-400 text-xs font-medium tracking-wide">MATA110, MATA121, MATR290</p>
         </div>

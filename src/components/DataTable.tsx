@@ -155,25 +155,56 @@ export function DataTable({ type, data }: DataTableProps) {
     
     const groupsMap = new Map<string, any[]>();
     
+    // Find keys once if possible, or cache them per variation of item._raw keys
+    const filialKeyCache = new Map<string, string | undefined>();
+    const tipoKeyCache = new Map<string, string | undefined>();
+
     for (const item of filteredData) {
         let filial = 'Sem Filial';
         let tipo = 'Geral';
         if (item._raw) {
-            const keys = Object.keys(item._raw);
-            const filialKey = keys.find(k => { const l = k.toLowerCase().trim(); return l === 'filial' || l === 'armazem' || l === 'armazém' || l === 'local'; });
-            const tipoKey = keys.find(k => { const l = k.toLowerCase().trim(); return l === 'tp' || l === 'tipo' || l === 'grupo'; });
+            const rawKeysStr = Object.keys(item._raw).join(',');
+            
+            let filialKey = filialKeyCache.get(rawKeysStr);
+            let tipoKey = tipoKeyCache.get(rawKeysStr);
+
+            if (!filialKeyCache.has(rawKeysStr)) {
+                const keys = Object.keys(item._raw);
+                filialKey = keys.find(k => { const l = k.toLowerCase().trim(); return l === 'filial' || l === 'armazem' || l === 'armazém' || l === 'local'; });
+                tipoKey = keys.find(k => { const l = k.toLowerCase().trim(); return l === 'tp' || l === 'tipo' || l === 'grupo'; });
+                filialKeyCache.set(rawKeysStr, filialKey);
+                tipoKeyCache.set(rawKeysStr, tipoKey);
+            }
+            
             if (filialKey && item._raw[filialKey]) filial = String(item._raw[filialKey]).trim();
             if (tipoKey && item._raw[tipoKey]) tipo = String(item._raw[tipoKey]).trim();
         }
         const key = `${filial} - ${tipo}`;
-        if (!groupsMap.has(key)) {
-            groupsMap.set(key, []);
+        
+        let arr = groupsMap.get(key);
+        if (!arr) {
+            arr = [];
+            groupsMap.set(key, arr);
         }
-        groupsMap.get(key)!.push(item);
+        arr.push(item);
     }
     
     return Array.from(groupsMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   }, [filteredData, type]);
+
+  const columnMetadata = useMemo(() => {
+    if (!dynamicColumns) return {};
+    const meta: Record<string, { isDateCol: boolean; isCurrencyCol: boolean; isNumericCol: boolean }> = {};
+    dynamicColumns.forEach(col => {
+      const colLower = col.toLowerCase();
+      const isDateCol = colLower.includes('dt') || colLower.includes('data') || colLower.includes('emissão') || colLower.includes('emissao') || colLower.includes('entrega') || colLower.includes('previsao');
+      const isCurrencyCol = colLower.includes('valor') || colLower.includes('custo') || colLower.includes('empenho');
+      const isNumericCol = colLower.includes('saldo') || isCurrencyCol || colLower.includes('ponto') || colLower.includes('meses') || colLower.includes('med.') || colLower.includes('quant') || colLower.includes('lote econom.');
+      
+      meta[col] = { isDateCol, isCurrencyCol, isNumericCol };
+    });
+    return meta;
+  }, [dynamicColumns]);
 
   const handleExport = () => {
     if (!filteredData || filteredData.length === 0) return;
@@ -407,20 +438,19 @@ export function DataTable({ type, data }: DataTableProps) {
                             onClick={() => setSelectedItem(item)}
                           >
                             {dynamicColumns ? (
-                              dynamicColumns.map((col, idx) => {
+                                dynamicColumns.map((col, idx) => {
                                   const value = item._raw && col in item._raw ? item._raw[col] : (item as any)[col];
                                   let displayValue = '-';
                                  
                                  if (value !== undefined && value !== null) {
-                                    const colLower = col.toLowerCase();
-                                    const isDateCol = colLower.includes('dt') || colLower.includes('data') || colLower.includes('emissão') || colLower.includes('emissao') || colLower.includes('entrega') || colLower.includes('previsao');
+                                    const meta = columnMetadata[col] || {};
                                     
-                                    if (isDateCol && typeof value === 'number' && value > 10000) {
+                                    if (meta.isDateCol && typeof value === 'number' && value > 10000) {
                                        const date = new Date(Math.round((value - 25569) * 86400 * 1000));
                                        displayValue = date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
-                                    } else if (typeof value === 'number' && !isDateCol && (colLower.includes('saldo') || colLower.includes('valor') || colLower.includes('custo') || colLower.includes('ponto') || colLower.includes('meses') || colLower.includes('med.'))) {
+                                    } else if (typeof value === 'number' && !meta.isDateCol && meta.isNumericCol) {
                                        // Format numeric properly for amounts
-                                       if (colLower.includes('valor') || colLower.includes('custo') || colLower.includes('empenho')) {
+                                       if (meta.isCurrencyCol) {
                                           displayValue = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
                                        } else {
                                           displayValue = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 3 }).format(value);
@@ -482,13 +512,12 @@ export function DataTable({ type, data }: DataTableProps) {
                             let displayValue = '-';
                             
                             if (value !== undefined && value !== null) {
-                               const colLower = col.toLowerCase();
-                               const isDateCol = colLower.includes('dt') || colLower.includes('data') || colLower.includes('emissão') || colLower.includes('emissao') || colLower.includes('entrega') || colLower.includes('previsao');
+                               const meta = columnMetadata[col] || {};
                                
-                               if (isDateCol && typeof value === 'number' && value > 10000) {
+                               if (meta.isDateCol && typeof value === 'number' && value > 10000) {
                                   const date = new Date(Math.round((value - 25569) * 86400 * 1000));
                                   displayValue = date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
-                               } else if (typeof value === 'number' && !isDateCol && (colLower.includes('valor') || colLower.includes('custo'))) {
+                               } else if (typeof value === 'number' && !meta.isDateCol && meta.isCurrencyCol) {
                                   displayValue = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
                                } else {
                                   displayValue = String(value);

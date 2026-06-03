@@ -182,8 +182,9 @@ export function ImportData({ onImportSC, onImportPC, onImportInventory }: Import
                  if (typeof val === 'string') {
                     val = val.replace(/^["'\s]+|["'\s]+$/g, '').trim();
                     // Try to convert string numbers
-                    if (/^-?\d+,\d+$/.test(val)) val = parseFloat(val.replace(',', '.'));
-                    else if (/^-?\d+\.\d+,\d+$/.test(val)) val = parseFloat(val.replace('.', '').replace(',', '.'));
+                    if (/^-?\d{1,3}(?:\.\d{3})*,\d+$/.test(val)) val = parseFloat(val.replace(/\./g, '').replace(',', '.'));
+                    else if (/^-?\d+,\d+$/.test(val)) val = parseFloat(val.replace(',', '.'));
+                    else if (/^-?\d+\.\d+,\d+$/.test(val)) val = parseFloat(val.replace(/\./g, '').replace(',', '.'));
                     else if (/^-?\d+\.\d+$/.test(val)) val = parseFloat(val);
                     else if (/^-?\d+$/.test(val) && val.length < 16) val = parseInt(val, 10);
                  }
